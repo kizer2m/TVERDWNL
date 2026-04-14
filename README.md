@@ -1,4 +1,4 @@
-# TVer Downloader
+# TVer Downloader 1
 
 **Version: 1.0.0**
 
