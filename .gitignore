@@ -1,1 +1,5 @@
+# Downloaded videos folder
 /Downloads
+
+# Data files (links list and download archive)
+*.txt
