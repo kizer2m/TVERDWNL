@@ -1,24 +1,24 @@
 """
-tver_downloader.py — Одиночный загрузчик видео с TVer.jp
-Версия: 1.0.0
+tver_downloader.py — Single-video downloader for TVer.jp
+Version: 1.0.0
 
-Описание:
-    Скачивает одно видео с TVer.jp по введённому URL при помощи yt-dlp.
-    Видео сохраняется в папку Downloads (создаётся автоматически).
+Description:
+    Downloads a single video from TVer.jp for a given URL using yt-dlp.
+    The video is saved to the Downloads folder (created automatically if missing).
 
-Использование:
+Usage:
     python tver_downloader.py
-    -> Введите URL видео при запросе.
+    -> Enter the video URL when prompted.
 
-Зависимости:
-    - yt-dlp  (установить: pip install yt-dlp  или  winget install yt-dlp)
+Dependencies:
+    - yt-dlp  (install: pip install yt-dlp  or  winget install yt-dlp)
 
-Заметки:
-    - Для обхода гео-блокировки TVer установите переменную proxy_address.
-    - Поддерживаются HTTP/HTTPS и SOCKS5 прокси.
+Notes:
+    - TVer.jp is geo-restricted to Japan. Set proxy_address to use a Japanese proxy/VPN.
+    - Both HTTP/HTTPS and SOCKS5 proxies are supported.
 
-Автор: (ваш никнейм)
-Лицензия: MIT
+Author: kizer2m
+License: MIT
 """
 
 import subprocess
@@ -27,75 +27,76 @@ import os
 
 VERSION = "1.0.0"
 
-def download_tver_video(url, output_dir="Downloads", proxy=None):
-    """
-    Скачивает видео с TVer, используя yt-dlp.
 
-    :param url: URL видео на TVer.jp (например, https://tver.jp/episodes/...)
-    :param output_dir: Папка для сохранения файла.
-    :param proxy: Опционально, строка прокси (например, 'http://127.0.0.1:8080').
-                  Требуется для обхода гео-ограничений TVer.
+def download_tver_video(url: str, output_dir: str = "Downloads", proxy: str | None = None) -> None:
     """
-    
-    print(f"Попытка скачать: {url}")
-    
-    # Создаем папку для загрузок, если она не существует
+    Download a single TVer.jp video using yt-dlp.
+
+    :param url:        Video URL on TVer.jp (e.g. https://tver.jp/episodes/...)
+    :param output_dir: Destination folder for the downloaded file.
+    :param proxy:      Optional proxy string (e.g. 'http://127.0.0.1:8080').
+                       Required to bypass TVer geo-restrictions outside Japan.
+    """
+
+    print(f"Attempting to download: {url}")
+
+    # Create the output folder if it does not exist
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-        print(f"Создана папка для загрузок: {output_dir}")
+        print(f"Created download folder: {output_dir}")
 
-    # Основные аргументы yt-dlp:
-    # -P {output_dir}: Указывает папку вывода
-    # --merge-output-format mp4: yt-dlp автоматически выберет лучшие потоки и объединит их в mp4
-    # (убрана опция -f best, вызвавшая ошибку)
+    # yt-dlp arguments:
+    #   -P {output_dir}            : set the output directory
+    #   --merge-output-format mp4  : merge best video + audio streams into mp4
+    #   --embed-metadata           : embed title/description metadata into the file
+    #   --no-mtime                 : use the current time as the file modification time
     command = [
         "yt-dlp",
         "-P", output_dir,
         "--merge-output-format", "mp4",
         "--embed-metadata",
         "--no-mtime",
-        url
+        url,
     ]
 
-    # Добавляем прокси, если указан
+    # Append proxy flag if a proxy address was provided
     if proxy:
-        # ВАЖНО: Требуется для обхода гео-блокировки TVer, если вы не в Японии.
+        # NOTE: Required to bypass TVer geo-blocking when accessing from outside Japan.
         command.extend(["--proxy", proxy])
-        print(f"Используется прокси: {proxy}")
-        
+        print(f"Using proxy: {proxy}")
+
     print("-" * 30)
-    print(f"Выполняемая команда: {' '.join(command)}")
+    print(f"Running command: {' '.join(command)}")
     print("-" * 30)
 
     try:
-        # Запускаем yt-dlp
-        # capture_output=False позволяет видеть прогресс yt-dlp в консоли.
-        process = subprocess.run(command, check=True, capture_output=False, text=False)
-        print("\n✅ Загрузка завершена.")
-        
+        # Run yt-dlp; capture_output=False lets its progress bar show in the terminal.
+        subprocess.run(command, check=True, capture_output=False, text=False)
+        print("\n✅ Download complete.")
+
     except subprocess.CalledProcessError as e:
-        print(f"\n❌ Ошибка при выполнении yt-dlp. Код возврата: {e.returncode}")
+        print(f"\n❌ yt-dlp exited with error code: {e.returncode}")
         print("--------------------")
-        print("Возможные причины:")
-        print("1. Гео-блокировка. Убедитесь, что ваш VPN/прокси с японским IP работает.")
-        print("2. Видео удалено или недоступно.")
+        print("Possible reasons:")
+        print("1. Geo-restriction. Make sure your VPN/proxy with a Japanese IP is active.")
+        print("2. The video has been removed or is unavailable.")
         print("--------------------")
+
     except FileNotFoundError:
-        print("\n❌ Ошибка: yt-dlp не найден. Убедитесь, что он установлен и доступен в PATH.")
+        print("\n❌ Error: yt-dlp not found. Make sure it is installed and available in PATH.")
         sys.exit(1)
 
 
 if __name__ == "__main__":
-    tver_url = input("Введите URL видео с TVer (например, https://tver.jp/episodes/...): ").strip()
-    
-    # 🚨 НАСТРОЙКА ПРОКСИ 🚨
-    # Если вам нужно использовать прокси (японский IP), замените None на строку:
-    # Пример HTTP: 'http://127.0.0.1:8080'
-    # Пример SOCKS5: 'socks5://user:pass@host:port'
-    proxy_address = None 
-    
+    tver_url = input("Enter the TVer video URL (e.g. https://tver.jp/episodes/...): ").strip()
+
+    # 🚨 PROXY SETUP 🚨
+    # If you need to use a proxy (Japanese IP), replace None with the address string:
+    # HTTP example:   proxy_address = 'http://127.0.0.1:8080'
+    # SOCKS5 example: proxy_address = 'socks5://user:pass@host:port'
+    proxy_address = None
+
     if not tver_url:
-        print("URL не был введен. Завершение.")
+        print("No URL entered. Exiting.")
     else:
         download_tver_video(tver_url, proxy=proxy_address)
-

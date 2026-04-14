@@ -1,34 +1,34 @@
 """
-tver_batch_downloader.py — Пакетный загрузчик видео с TVer.jp
-Версия: 1.0.0
+tver_batch_downloader.py — Batch downloader for TVer.jp
+Version: 1.0.0
 
-Описание:
-    Читает список ссылок из файла links.txt и скачивает каждое видео
-    по очереди при помощи yt-dlp.
-    После успешной загрузки и объединения видео+аудио ссылка
-    автоматически удаляется из links.txt.
-    Уже скачанные видео пропускаются (контролируется через downloaded_archive.txt).
-    Все файлы сохраняются в папку Downloads (создаётся автоматически).
+Description:
+    Reads a list of URLs from links.txt and downloads each video one by one
+    using yt-dlp.
+    After a successful download (video + audio merged), the corresponding URL
+    is automatically removed from links.txt.
+    Videos already downloaded are skipped (tracked via downloaded_archive.txt).
+    All files are saved to the Downloads folder (created automatically if missing).
 
-Использование:
-    1. Добавьте ссылки в links.txt (каждая ссылка — с новой строки).
-    2. Запустите: python tver_batch_downloader.py
+Usage:
+    1. Add video URLs to links.txt — one URL per line.
+    2. Run: python tver_batch_downloader.py
 
-Зависимости:
-    - yt-dlp  (установить: pip install yt-dlp  или  winget install yt-dlp)
+Dependencies:
+    - yt-dlp  (install: pip install yt-dlp  or  winget install yt-dlp)
 
-Файлы:
-    links.txt              — список URL для загрузки (один на строку)
-    downloaded_archive.txt — архив ID уже скачанных видео (создаётся автоматически)
-    Downloads/             — папка с загруженными файлами  (создаётся автоматически)
+Files:
+    links.txt              — list of URLs to download (one per line)
+    downloaded_archive.txt — archive of already-downloaded video IDs (auto-created)
+    Downloads/             — destination folder for downloaded files (auto-created)
 
-Заметки:
-    - Для обхода гео-блокировки TVer установите переменную proxy_address.
-    - Поддерживаются HTTP/HTTPS и SOCKS5 прокси.
-    - Комментарии (#) и пустые строки в links.txt пропускаются.
+Notes:
+    - TVer.jp is geo-restricted to Japan. Set proxy_address to use a Japanese proxy/VPN.
+    - Both HTTP/HTTPS and SOCKS5 proxies are supported.
+    - Comment lines (#) and blank lines in links.txt are ignored.
 
-Автор: (ваш никнейм)
-Лицензия: MIT
+Author: kizer2m
+License: MIT
 """
 
 import subprocess
@@ -37,48 +37,48 @@ import os
 
 VERSION = "1.0.0"
 
-# Имя файла, содержащего список ссылок
+# Path to the file that holds the list of URLs to download
 LINKS_FILE = "links.txt"
-# Файл-архив для yt-dlp (хранит ID уже скачанных видео, чтобы не качать повторно)
+# yt-dlp archive file — stores IDs of already-downloaded videos to avoid re-downloading
 ARCHIVE_FILE = "downloaded_archive.txt"
 
 
 def _read_links(path: str) -> list[str]:
-    """Возвращает список непустых ссылок из файла (строки-комментарии # пропускаются)."""
+    """Return a list of non-empty URLs from the file, skipping comment lines (#)."""
     with open(path, "r", encoding="utf-8") as f:
         lines = f.read().splitlines()
     return [ln.strip() for ln in lines if ln.strip() and not ln.strip().startswith("#")]
 
 
 def _remove_link_from_file(path: str, url: str) -> None:
-    """Удаляет конкретную ссылку из файла links.txt после успешной загрузки."""
+    """Remove a specific URL from links.txt after it has been downloaded successfully."""
     with open(path, "r", encoding="utf-8") as f:
         lines = f.read().splitlines()
 
-    # Оставляем все строки, кроме той, что совпадает с url (с учётом пробелов)
+    # Keep every line except the one that matches the given URL (stripped comparison)
     new_lines = [ln for ln in lines if ln.strip() != url]
 
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(new_lines))
-        if new_lines:          # добавляем финальный перевод строки, если файл не пуст
+        if new_lines:       # add a trailing newline if the file is not empty
             f.write("\n")
 
 
 def download_single(url: str, output_dir: str, proxy: str | None) -> bool:
     """
-    Скачивает одно видео по переданному URL.
+    Download a single video from the given URL.
 
-    :param url:        URL видео на TVer.jp
-    :param output_dir: Папка для сохранения файла
-    :param proxy:      Строка прокси или None
-    :returns:          True — загрузка прошла успешно, False — ошибка
+    :param url:        Video URL on TVer.jp
+    :param output_dir: Destination folder for the downloaded file
+    :param proxy:      Proxy address string or None
+    :returns:          True if the download succeeded, False otherwise
     """
     command = [
         "yt-dlp",
         "--download-archive", ARCHIVE_FILE,
         "-P", output_dir,
         "--merge-output-format", "mp4",
-        "-o", "%(title)s [%(id)s].%(ext)s",
+        "-o", "%(title)s [%(id)s].%(ext)s",   # filename template (no path prefix — -P handles that)
         "--embed-metadata",
         "--no-mtime",
         url,
@@ -93,78 +93,78 @@ def download_single(url: str, output_dir: str, proxy: str | None) -> bool:
     except subprocess.CalledProcessError:
         return False
     except FileNotFoundError:
-        print("\n❌ Ошибка: yt-dlp не найден. Установите его или добавьте в PATH.")
+        print("\n❌ Error: yt-dlp not found. Install it or add it to PATH.")
         sys.exit(1)
 
 
 def download_tver_videos_from_file(output_dir: str = "Downloads", proxy: str | None = None) -> None:
     """
-    Пакетная загрузка видео с TVer из файла links.txt.
+    Batch-download TVer videos listed in links.txt.
 
-    Для каждой ссылки:
-      - запускает yt-dlp;
-      - при успехе удаляет ссылку из links.txt;
-      - при ошибке оставляет ссылку в файле для повторной попытки.
+    For each URL:
+      - runs yt-dlp;
+      - on success  → removes the URL from links.txt;
+      - on failure  → leaves the URL in links.txt for a later retry.
 
-    :param output_dir: Папка для сохранения видео (по умолчанию — Downloads)
-    :param proxy:      Строка прокси или None
+    :param output_dir: Destination folder for downloaded videos (default: Downloads)
+    :param proxy:      Proxy address string or None
     """
     print(f"TVer Batch Downloader v{VERSION}")
     print("=" * 50)
 
     if not os.path.exists(LINKS_FILE) or os.path.getsize(LINKS_FILE) == 0:
-        print(f"❌ Ошибка: Файл '{LINKS_FILE}' не найден или пуст.")
-        print("Создайте файл и вставьте в него ссылки (каждая с новой строки).")
+        print(f"❌ Error: '{LINKS_FILE}' not found or empty.")
+        print("Create the file and add URLs, one per line.")
         return
 
     links = _read_links(LINKS_FILE)
     if not links:
-        print(f"ℹ️  В файле '{LINKS_FILE}' нет активных ссылок.")
+        print(f"ℹ️  No active URLs found in '{LINKS_FILE}'.")
         return
 
-    # Создаём папку для загрузок, если её нет
+    # Create the output folder if it does not exist
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-        print(f"📁 Создана папка для загрузок: {output_dir}")
+        print(f"📁 Created download folder: {output_dir}")
 
     if proxy:
-        print(f"🌐 Используется прокси: {proxy}")
+        print(f"🌐 Using proxy: {proxy}")
 
-    print(f"📂 Всего ссылок к загрузке: {len(links)}")
-    print(f"📦 Архив уже скачанных:      {ARCHIVE_FILE}")
-    print(f"💾 Папка вывода:             {output_dir}")
+    print(f"📂 URLs to download:  {len(links)}")
+    print(f"📦 Download archive:  {ARCHIVE_FILE}")
+    print(f"💾 Output folder:     {output_dir}")
     print("-" * 50)
 
     success_count = 0
     fail_count = 0
 
     for i, url in enumerate(links, start=1):
-        print(f"\n[{i}/{len(links)}] Скачиваю: {url}")
+        print(f"\n[{i}/{len(links)}] Downloading: {url}")
         print("-" * 50)
 
         ok = download_single(url, output_dir, proxy)
 
         if ok:
-            print(f"✅ Готово: {url}")
+            print(f"✅ Done: {url}")
             _remove_link_from_file(LINKS_FILE, url)
             success_count += 1
         else:
-            print(f"❌ Ошибка при загрузке: {url}")
-            print("   Ссылка остаётся в links.txt для повторной попытки.")
+            print(f"❌ Failed: {url}")
+            print("   URL remains in links.txt for retry.")
             fail_count += 1
 
     print("\n" + "=" * 50)
-    print(f"🎉 Загрузка завершена. Успешно: {success_count}, Ошибок: {fail_count}")
+    print(f"🎉 All done. Succeeded: {success_count}, Failed: {fail_count}")
     if fail_count:
-        print(f"⚠️  Неудачные ссылки остались в '{LINKS_FILE}'.")
+        print(f"⚠️  Failed URLs are still in '{LINKS_FILE}'.")
 
 
 if __name__ == "__main__":
 
-    # 🚨 НАСТРОЙКА ПРОКСИ 🚨
-    # Если вам нужно использовать прокси (японский IP), замените None на строку:
-    # Пример HTTP:   proxy_address = 'http://127.0.0.1:8080'
-    # Пример SOCKS5: proxy_address = 'socks5://user:pass@host:port'
+    # 🚨 PROXY SETUP 🚨
+    # If you need a Japanese IP to bypass TVer geo-restriction, replace None with the address:
+    # HTTP example:   proxy_address = 'http://127.0.0.1:8080'
+    # SOCKS5 example: proxy_address = 'socks5://user:pass@host:port'
     proxy_address = None
 
     download_tver_videos_from_file(proxy=proxy_address)

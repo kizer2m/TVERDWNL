@@ -1,79 +1,79 @@
 # TVer Downloader
 
-**Версия: 1.0.0**
+**Version: 1.0.0**
 
-Набор Python-скриптов для загрузки видео с японского стримингового сервиса [TVer.jp](https://tver.jp) с помощью `yt-dlp`.
-
----
-
-## Содержание
-
-- [Файлы проекта](#файлы-проекта)
-- [Зависимости](#зависимости)
-- [Быстрый старт](#быстрый-старт)
-- [Описание скриптов](#описание-скриптов)
-  - [tver_downloader.py](#tver_downloaderpy)
-  - [tver_batch_downloader.py](#tver_batch_downloaderpy)
-- [Структура папок](#структура-папок)
-- [Настройка прокси](#настройка-прокси)
-- [Описание файлов данных](#описание-файлов-данных)
-- [Частые ошибки](#частые-ошибки)
-- [Лицензия](#лицензия)
+A set of Python scripts for downloading videos from the Japanese streaming service [TVer.jp](https://tver.jp) using `yt-dlp`.
 
 ---
 
-## Файлы проекта
+## Table of Contents
 
-| Файл | Назначение |
+- [Project Files](#project-files)
+- [Dependencies](#dependencies)
+- [Quick Start](#quick-start)
+- [Script Reference](#script-reference)
+  - [tver\_downloader.py](#tver_downloaderpy)
+  - [tver\_batch\_downloader.py](#tver_batch_downloaderpy)
+- [Folder Structure](#folder-structure)
+- [Proxy Setup](#proxy-setup)
+- [Data Files](#data-files)
+- [Common Errors](#common-errors)
+- [License](#license)
+
+---
+
+## Project Files
+
+| File | Purpose |
 |---|---|
-| `tver_downloader.py` | Загрузка одного видео по URL |
-| `tver_batch_downloader.py` | Пакетная загрузка списка ссылок из `links.txt` |
-| `tver_downloader.cmd` | Ярлык для запуска одиночного загрузчика |
-| `tver_batch_downloader.cmd` | Ярлык для запуска пакетного загрузчика |
-| `links.txt` | Список URL для пакетной загрузки |
-| `downloaded_archive.txt` | Архив ID уже скачанных видео (создаётся автоматически) |
+| `tver_downloader.py` | Download a single video by URL |
+| `tver_batch_downloader.py` | Batch-download a list of URLs from `links.txt` |
+| `tver_downloader.cmd` | Shortcut to run the single downloader |
+| `tver_batch_downloader.cmd` | Shortcut to run the batch downloader |
+| `links.txt` | List of URLs for batch downloading |
+| `downloaded_archive.txt` | yt-dlp archive of already-downloaded video IDs (auto-created) |
 
 ---
 
-## Зависимости
+## Dependencies
 
 - **Python 3.10+**
 - **yt-dlp**
 
-Установка yt-dlp:
+Install yt-dlp:
 
 ```bash
-# через pip
+# via pip
 pip install yt-dlp
 
-# через winget (Windows)
+# via winget (Windows)
 winget install yt-dlp
 
-# обновление
+# update to the latest version
 yt-dlp -U
 ```
 
 ---
 
-## Быстрый старт
+## Quick Start
 
-### Одно видео
+### Single video
 
 ```bash
 python tver_downloader.py
-# → Введите URL при запросе
+# → Enter the URL when prompted
 ```
 
-### Несколько видео (пакетный режим)
+### Multiple videos (batch mode)
 
-1. Добавьте ссылки в `links.txt` (по одной на строку):
+1. Add URLs to `links.txt`, one per line:
 
 ```
 https://tver.jp/episodes/ep000000001
 https://tver.jp/episodes/ep000000002
 ```
 
-2. Запустите:
+2. Run:
 
 ```bash
 python tver_batch_downloader.py
@@ -81,118 +81,118 @@ python tver_batch_downloader.py
 
 ---
 
-## Описание скриптов
+## Script Reference
 
-### tver_downloader.py
+### tver\_downloader.py
 
-Скачивает **одно** видео по URL, введённому пользователем в консоли.
+Downloads **one** video from the URL entered by the user in the terminal.
 
-**Поведение:**
-- Создаёт папку `Downloads/` если она не существует.
-- Сохраняет видео в формате MP4 (видео + аудио объединяются автоматически).
-- Встраивает метаданные в файл.
+**Behaviour:**
+- Creates the `Downloads/` folder automatically if it does not exist.
+- Saves the video as MP4 (video and audio streams are merged automatically).
+- Embeds metadata into the output file.
 
-**Запуск:**
+**Run:**
 ```bash
 python tver_downloader.py
 ```
 
 ---
 
-### tver_batch_downloader.py
+### tver\_batch\_downloader.py
 
-Скачивает **список** видео из файла `links.txt`.
+Downloads a **list** of videos from `links.txt`.
 
-**Поведение:**
-- Читает ссылки из `links.txt` (строки-комментарии `#` и пустые строки пропускаются).
-- Создаёт папку `Downloads/` если она не существует.
-- Для каждой ссылки запускает `yt-dlp`.
-- ✅ **После успешной загрузки** удаляет ссылку из `links.txt`.
-- ❌ **При ошибке** оставляет ссылку в `links.txt` для повторной попытки.
-- Записывает ID скачанных видео в `downloaded_archive.txt`, чтобы не скачивать их повторно при следующем запуске.
+**Behaviour:**
+- Reads URLs from `links.txt` (comment lines starting with `#` and blank lines are ignored).
+- Creates the `Downloads/` folder automatically if it does not exist.
+- Processes each URL one by one with `yt-dlp`.
+- ✅ **After a successful download**, removes the URL from `links.txt`.
+- ❌ **On failure**, leaves the URL in `links.txt` so it can be retried later.
+- Records downloaded video IDs in `downloaded_archive.txt` to avoid re-downloading on the next run.
 
-**Запуск:**
+**Run:**
 ```bash
 python tver_batch_downloader.py
 ```
 
 ---
 
-## Структура папок
+## Folder Structure
 
 ```
 TVERDWNL/
-├── tver_downloader.py          # Одиночный загрузчик
-├── tver_batch_downloader.py    # Пакетный загрузчик
-├── tver_downloader.cmd         # Ярлык запуска
-├── tver_batch_downloader.cmd   # Ярлык запуска
-├── links.txt                   # Список ссылок для пакетной загрузки
-├── downloaded_archive.txt      # Архив ID (создаётся автоматически)
-└── Downloads/                  # Загруженные видео (создаётся автоматически)
+├── tver_downloader.py          # Single-video downloader
+├── tver_batch_downloader.py    # Batch downloader
+├── tver_downloader.cmd         # Run shortcut
+├── tver_batch_downloader.cmd   # Run shortcut
+├── links.txt                   # URL list for batch downloads
+├── downloaded_archive.txt      # yt-dlp ID archive (auto-created)
+└── Downloads/                  # Output folder for downloaded videos (auto-created)
 ```
 
 ---
 
-## Настройка прокси
+## Proxy Setup
 
-TVer.jp доступен только из Японии. Для скачивания из других стран необходим японский прокси или VPN.
+TVer.jp is only accessible from Japan. To download from other countries you need a Japanese proxy or VPN.
 
-В обоих скриптах найдите строку:
+In both scripts, find the line:
 
 ```python
 proxy_address = None
 ```
 
-и замените на нужный адрес, например:
+and replace `None` with your proxy address:
 
 ```python
-# HTTP прокси
+# HTTP proxy
 proxy_address = 'http://127.0.0.1:8080'
 
-# SOCKS5 прокси
+# SOCKS5 proxy
 proxy_address = 'socks5://user:password@host:port'
 ```
 
 ---
 
-## Описание файлов данных
+## Data Files
 
 ### links.txt
 
-Файл со списком URL для пакетной загрузки. Формат:
+Contains the list of URLs for batch downloading. Format:
 
 ```
-# Это комментарий — строка будет пропущена
+# This is a comment — this line will be skipped
 
 https://tver.jp/episodes/ep000000001
 https://tver.jp/episodes/ep000000002
 ```
 
-> После успешной загрузки каждого видео соответствующая ссылка **автоматически удаляется** из этого файла.
+> After each video is downloaded successfully, its URL is **automatically removed** from this file.
 
 ### downloaded_archive.txt
 
-Файл, создаваемый автоматически. Хранит yt-dlp-идентификаторы уже скачанных видео.  
-Если видео присутствует в архиве — оно **не будет скачано повторно**, даже если добавить ссылку в `links.txt` снова.
+Created automatically by yt-dlp. Stores video IDs that have already been downloaded.  
+If a video ID is present in the archive it **will not be downloaded again**, even if you add the URL back to `links.txt`.
 
-> Если вы хотите скачать видео заново — удалите соответствующую строку из `downloaded_archive.txt`.
+> To re-download a video, delete its line from `downloaded_archive.txt`.
 
 ---
 
-## Частые ошибки
+## Common Errors
 
-| Ошибка | Причина | Решение |
+| Error | Cause | Fix |
 |---|---|---|
-| `yt-dlp не найден` | yt-dlp не установлен или не в PATH | `pip install yt-dlp` |
-| Код возврата ≠ 0 | Гео-блокировка или видео недоступно | Настройте японский прокси/VPN |
-| Видео пропускается | Уже есть в `downloaded_archive.txt` | Удалите запись из архива |
-| `links.txt` пуст | Нет ссылок для загрузки | Добавьте URL в файл |
+| `yt-dlp not found` | yt-dlp is not installed or not in PATH | `pip install yt-dlp` |
+| Non-zero exit code | Geo-restriction or video unavailable | Set up a Japanese proxy/VPN |
+| Video skipped | Already present in `downloaded_archive.txt` | Remove its entry from the archive |
+| `links.txt` is empty | No URLs to download | Add URLs to the file |
 
 ---
 
-## Лицензия
+## License
 
-MIT — используйте свободно.
+MIT — free to use.
 
 ---
 
