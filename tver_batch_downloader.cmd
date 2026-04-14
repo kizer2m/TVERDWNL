@@ -1,3 +1,2 @@
-tver_batch_downloader.py
-
+python tver_batch_downloader.py
 pause
