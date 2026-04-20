@@ -38,7 +38,7 @@ import queue
 import threading
 import time
 
-VERSION      = "2.1.0"
+VERSION      = "2.1.1"
 OUTPUT_DIR   = "Downloads"
 LINKS_FILE   = "links.txt"
 ARCHIVE_FILE = "downloaded_archive.txt"
@@ -419,7 +419,8 @@ def _save_metadata(title: str, description: str, output_dir: str):
         with open(path, "w", encoding="utf-8") as f:
             f.write(f"Title: {title}\n\n")
             f.write(f"Description:\n{description or '(no description)'}\n")
-        _ui_status('✓', f"Metadata  → {C.DM}{safe}.txt{C.E}")
+        disp = (safe[:38] + '…') if len(safe) > 39 else safe
+        _ui_status('│', f"Metadata  → {C.DM}{disp}.txt{C.E}", C.DG)
     except Exception as e:
         _ui_status('⚠', f"Could not save metadata: {e}", C.Y)
 
@@ -446,7 +447,8 @@ def _download_thumbnail(url: str, title: str, proxy: str | None):
         for ext in ("webp", "jpg", "jpeg", "png"):
             candidate = os.path.join(THUMB_DIR, f"{safe}.{ext}")
             if os.path.exists(candidate):
-                _ui_status('✓', f"Thumbnail → {C.DM}thumbnails/{safe}.{ext}{C.E}")
+                disp = (safe[:38] + '…') if len(safe) > 39 else safe
+                _ui_status('│', f"Thumbnail → {C.DM}thumbnails/{disp}.{ext}{C.E}", C.DG)
                 return
         _ui_status('⚠', "Thumbnail not available (platform did not provide one).", C.Y)
     except Exception as e:
@@ -609,7 +611,7 @@ def _download_video_subprocess(
                 label = _phase_label(phase)
                 sys.stdout.write(
                     f"\r  {C.G}✓{C.E}  {label} {bar}"
-                    f"  {C.BO}100.0%{C.E}  {C.G}Done!{C.E}          \n"
+                    f"  {C.BO}100.0%{C.E}  {C.G}Done!{C.E}\033[K\n"
                 )
                 sys.stdout.flush()
                 continue
@@ -626,13 +628,11 @@ def _download_video_subprocess(
 
         # ── Merge finalise: overwrite animation line with Done ─────────
         if merge_start is not None:
-            elapsed = time.monotonic() - merge_start
-            e_str   = f"{int(elapsed // 60):02d}:{int(elapsed % 60):02d}"
-            bar     = f"\033[92m{'━' * 22}{C.E}"
-            label   = _phase_label("merge")
+            bar   = f"\033[92m{'━' * 22}{C.E}"
+            label = _phase_label("merge")
             sys.stdout.write(
                 f"\r  {C.G}✓{C.E}  {label} {bar}"
-                f"  {C.BO}100.0%{C.E}  {C.DM}elapsed {e_str}{C.E}  {C.G}Done!{C.E}          \n"
+                f"  {C.BO}100.0%{C.E}  {C.G}Done!{C.E}\033[K\n"
             )
             sys.stdout.flush()
 
