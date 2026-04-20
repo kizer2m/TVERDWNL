@@ -66,7 +66,8 @@ def _ui_separator(color: str = '\033[90m'):
 
 
 def _ui_banner(title: str, width: int = 50, color: str = C.CN):
-    pad = width - len(title) - 2
+    # pad fills the interior space (width chars between the two ║)
+    pad = width - len(title)
     l = max(pad // 2, 0)
     r = max(pad - l, 0)
     print()
@@ -100,6 +101,7 @@ def _ui_prompt(label: str = '') -> str:
 
 def _ui_menu_item(num: str, label: str):
     print(f"  {C.DG}│{C.E}  {C.CN}{C.BO}{num}{C.E}  {C.W}{label}{C.E}")
+
 
 
 def _ui_video_header(title: str, index: int, total: int):
@@ -702,12 +704,12 @@ def _main_menu():
     while True:
         _ui_banner(f"TVER DOWNLOADER  v{VERSION}", width=44, color=C.CN)
 
-        print(f"  {C.DG}╔{'═' * 44}╗{C.E}")
+        _ui_separator(C.DG)
         _ui_menu_item("1", "Скачать одно видео")
         _ui_menu_item("2", "Скачать из файла  (links.txt)")
         _ui_menu_item("3", "Скачать плейлист")
         _ui_menu_item("4", "Выход")
-        print(f"  {C.DG}╚{'═' * 44}╝{C.E}")
+        _ui_separator(C.DG)
         print()
 
         choice = _ui_prompt("Выберите пункт (1-4)")
