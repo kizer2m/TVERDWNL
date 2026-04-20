@@ -110,7 +110,7 @@ def _ui_video_header(title: str, index: int, total: int):
     _ui_separator(C.DG)
     short_title = title if len(title) <= 48 else title[:45] + '…'
     print(f"  {C.CN}⟳{C.E}  {C.BO}{short_title}{C.E}")
-    print(f"  {C.DG}│{C.E}  {C.DM}Видео {C.E}{C.W}{C.BO}{index}{C.E}{C.DM} из {C.E}{C.W}{C.BO}{total}{C.E}")
+    print(f"  {C.DG}│{C.E}  {C.DM}Video {C.E}{C.W}{C.BO}{index}{C.E}{C.DM} of {C.E}{C.W}{C.BO}{total}{C.E}")
     _ui_separator(C.DG)
 
 
@@ -137,9 +137,9 @@ def _progress_bar_str(pct: float, width: int = 22) -> str:
 
 def _phase_label(phase: str) -> str:
     labels = {
-        "audio": f"{C.H}♪ Аудио  {C.E}",
-        "video": f"{C.B}▶ Видео  {C.E}",
-        "merge": f"{C.G}⊕ Монтаж {C.E}",
+        "audio": f"{C.H}♪ Audio  {C.E}",
+        "video": f"{C.B}▶ Video  {C.E}",
+        "merge": f"{C.G}⊕ Merge  {C.E}",
     }
     return labels.get(phase, f"{C.DM}{phase}{C.E}")
 
@@ -269,9 +269,9 @@ def _save_metadata(title: str, description: str, output_dir: str):
         with open(path, "w", encoding="utf-8") as f:
             f.write(f"Title: {title}\n\n")
             f.write(f"Description:\n{description or '(no description)'}\n")
-        _ui_status('✓', f"Метаданные → {C.DM}{safe}.txt{C.E}")
+        _ui_status('✓', f"Metadata  → {C.DM}{safe}.txt{C.E}")
     except Exception as e:
-        _ui_status('⚠', f"Не удалось сохранить метаданные: {e}", C.Y)
+        _ui_status('⚠', f"Could not save metadata: {e}", C.Y)
 
 
 def _download_thumbnail(url: str, title: str, proxy: str | None):
@@ -296,11 +296,11 @@ def _download_thumbnail(url: str, title: str, proxy: str | None):
         for ext in ("webp", "jpg", "jpeg", "png"):
             candidate = os.path.join(THUMB_DIR, f"{safe}.{ext}")
             if os.path.exists(candidate):
-                _ui_status('✓', f"Обложка   → {C.DM}thumbnails/{safe}.{ext}{C.E}")
+                _ui_status('✓', f"Thumbnail → {C.DM}thumbnails/{safe}.{ext}{C.E}")
                 return
-        _ui_status('⚠', "Обложка не найдена (платформа не предоставляет).", C.Y)
+        _ui_status('⚠', "Thumbnail not available (platform did not provide one).", C.Y)
     except Exception as e:
-        _ui_status('⚠', f"Ошибка загрузки обложки: {e}", C.Y)
+        _ui_status('⚠', f"Thumbnail download error: {e}", C.Y)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -414,7 +414,7 @@ def _download_video_subprocess(
                 label = _phase_label(phase)
                 sys.stdout.write(
                     f"\r  {C.G}✓{C.E}  {label} {bar}"
-                    f"  {C.BO}100.0%{C.E}  {C.G}Готово!{C.E}          \n"
+                    f"  {C.BO}100.0%{C.E}  {C.G}Done!{C.E}          \n"
                 )
                 sys.stdout.flush()
                 continue
@@ -423,7 +423,7 @@ def _download_video_subprocess(
             if "[Merger]" in line or "Merging formats" in line:
                 sys.stdout.write(
                     f"\r  {C.CN}⟳{C.E}  {_phase_label('merge')} {_progress_bar_str(50)}"
-                    f"  {C.DM}Объединение потоков…{C.E}          "
+                    f"  {C.DM}Merging streams…{C.E}          "
                 )
                 sys.stdout.flush()
                 continue
@@ -433,14 +433,14 @@ def _download_video_subprocess(
 
             # ── "already downloaded" ───────────────────────────────────
             if "has already been recorded" in line or "already in archive" in line:
-                _ui_status('│', f"{C.DM}Уже скачано — пропускаем.{C.E}", C.DG)
+                _ui_status('│', f"{C.DM}Already downloaded — skipping.{C.E}", C.DG)
 
         proc.wait()
         return proc.returncode == 0
 
     except FileNotFoundError:
         print()
-        _ui_status('✗', 'yt-dlp не найден. Установите его и добавьте в PATH.', C.R)
+        _ui_status('✗', 'yt-dlp not found. Install it and add it to PATH.', C.R)
         sys.exit(1)
 
 
@@ -449,14 +449,14 @@ def _download_video_subprocess(
 # ─────────────────────────────────────────────────────────────────────────────
 
 def menu_single(proxy: str | None):
-    _ui_banner("ОДНО ВИДЕО", width=40, color=C.CN)
-    url = _ui_prompt("Ссылка на видео TVer.jp")
+    _ui_banner("SINGLE VIDEO", width=40, color=C.CN)
+    url = _ui_prompt("TVer.jp video URL")
     if not url:
-        _ui_status('⚠', 'URL не введён. Возврат в меню.', C.Y)
+        _ui_status('⚠', 'No URL entered. Returning to menu.', C.Y)
         return
 
     print()
-    _ui_status('⟳', 'Получение информации о видео…', C.CN)
+    _ui_status('⟳', 'Fetching video info…', C.CN)
 
     info = _fetch_info(url, proxy)
     title       = info.get("title", "video") if info else "video"
@@ -465,16 +465,16 @@ def menu_single(proxy: str | None):
 
     print()
     _ui_separator()
-    _ui_info_row("Название", title)
-    _ui_info_row("URL     ", url[:60] + ("…" if len(url) > 60 else ""))
+    _ui_info_row("Title ", title)
+    _ui_info_row("URL   ", url[:60] + ("…" if len(url) > 60 else ""))
     if proxy:
-        _ui_info_row("Прокси  ", proxy)
+        _ui_info_row("Proxy ", proxy)
     _ui_separator()
     print()
 
     # Check archive
     if video_id and _is_in_archive(video_id):
-        _ui_status('│', f"{C.Y}Уже скачано (найдено в архиве). Пропускаем.{C.E}", C.DG)
+        _ui_status('│', f"{C.Y}Already downloaded (found in archive). Skipping.{C.E}", C.DG)
         print()
         return
 
@@ -486,14 +486,14 @@ def menu_single(proxy: str | None):
     print()
     _ui_separator()
     if ok:
-        _ui_status('✦', f"{C.BO}Скачано!{C.E}", C.G)
+        _ui_status('✦', f"{C.BO}Downloaded!{C.E}", C.G)
         if info:
             _save_metadata(title, description, OUTPUT_DIR)
             _download_thumbnail(url, title, proxy)
     else:
-        _ui_status('✗', 'Ошибка скачивания.', C.R)
-        _ui_status('│', '1. Включите японский VPN/прокси.', C.DG)
-        _ui_status('│', '2. Видео может быть недоступно.', C.DG)
+        _ui_status('✗', 'Download failed.', C.R)
+        _ui_status('│', '1. Make sure a Japanese VPN/proxy is active.', C.DG)
+        _ui_status('│', '2. The video may have been removed or is unavailable.', C.DG)
     _ui_separator()
     print()
 
@@ -503,27 +503,27 @@ def menu_single(proxy: str | None):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def menu_batch(proxy: str | None):
-    _ui_banner("ПАКЕТНАЯ ЗАГРУЗКА", width=40, color=C.CN)
+    _ui_banner("BATCH DOWNLOAD", width=40, color=C.CN)
 
     if not os.path.exists(LINKS_FILE) or os.path.getsize(LINKS_FILE) == 0:
-        _ui_status('✗', f"Файл '{LINKS_FILE}' не найден или пуст.", C.R)
-        _ui_status('│', 'Добавьте ссылки в файл по одной на строку.', C.DG)
+        _ui_status('✗', f"'{LINKS_FILE}' not found or empty.", C.R)
+        _ui_status('│', 'Add URLs to the file, one per line.', C.DG)
         print()
         return
 
     links = _read_links(LINKS_FILE)
     if not links:
-        _ui_status('⚠', f"В '{LINKS_FILE}' нет активных URL.", C.Y)
+        _ui_status('⚠', f"No active URLs found in '{LINKS_FILE}'.", C.Y)
         print()
         return
 
     total = len(links)
-    _ui_header('Параметры сессии', C.CN)
-    _ui_info_row('URL к загрузке ', str(total))
-    _ui_info_row('Файл архива    ', ARCHIVE_FILE)
-    _ui_info_row('Папка загрузки ', OUTPUT_DIR)
+    _ui_header('Session Info', C.CN)
+    _ui_info_row('URLs to download', str(total))
+    _ui_info_row('Archive file    ', ARCHIVE_FILE)
+    _ui_info_row('Output folder   ', OUTPUT_DIR)
     if proxy:
-        _ui_info_row('Прокси         ', proxy)
+        _ui_info_row('Proxy           ', proxy)
     print()
 
     _ensure_dir(OUTPUT_DIR)
@@ -531,7 +531,7 @@ def menu_batch(proxy: str | None):
     # ── Check which are already downloaded ────────────────────────────
     already_count = 0
     to_download   = []
-    _ui_status('⟳', 'Проверка архива…', C.CN)
+    _ui_status('⟳', 'Checking archive…', C.CN)
     for url in links:
         info = _fetch_info(url, proxy, flat=True)
         vid_id = info.get("id", "") if info else ""
@@ -541,10 +541,10 @@ def menu_batch(proxy: str | None):
             to_download.append((url, info))
 
     if already_count:
-        _ui_status('│', f"{C.Y}Найдено уже скачанных: {C.BO}{already_count}{C.E}"
-                        f"{C.Y} из {C.BO}{total}{C.E}. Пропускаем их.", C.DG)
+        _ui_status('│', f"{C.Y}Already downloaded: {C.BO}{already_count}{C.E}"
+                        f"{C.Y} of {C.BO}{total}{C.E}. Skipping them.", C.DG)
     new_count = len(to_download)
-    _ui_status('⟳', f"К загрузке: {C.W}{C.BO}{new_count}{C.E}", C.CN)
+    _ui_status('⟳', f"To download: {C.W}{C.BO}{new_count}{C.E}", C.CN)
     print()
 
     success_count = 0
@@ -561,25 +561,25 @@ def menu_batch(proxy: str | None):
         print()
 
         if ok:
-            _ui_status('✓', 'Скачано успешно.', C.G)
+            _ui_status('✓', 'Downloaded successfully.', C.G)
             _remove_link_from_file(LINKS_FILE, url)
             _save_metadata(title, description, OUTPUT_DIR)
             _download_thumbnail(url, title, proxy)
             success_count += 1
         else:
-            _ui_status('✗', 'Ошибка скачивания.', C.R)
-            _ui_status('│', 'URL остаётся в links.txt для повтора.', C.DG)
+            _ui_status('✗', 'Download failed.', C.R)
+            _ui_status('│', 'URL remains in links.txt for retry.', C.DG)
             fail_count += 1
 
     print()
     _ui_separator()
     if fail_count == 0:
-        _ui_status('✦', f"{C.BO}Всё готово!{C.E}  "
-                        f"Успешно: {C.G}{success_count}{C.E}  Ошибок: {C.DM}0{C.E}", C.G)
+        _ui_status('✦', f"{C.BO}All done!{C.E}  "
+                        f"Succeeded: {C.G}{success_count}{C.E}  Failed: {C.DM}0{C.E}", C.G)
     else:
-        _ui_status('✦', f"{C.BO}Завершено.{C.E}  "
-                        f"Успешно: {C.G}{success_count}{C.E}  Ошибок: {C.R}{fail_count}{C.E}", C.Y)
-        _ui_status('⚠', f"Проблемные URL остались в '{LINKS_FILE}'.", C.Y)
+        _ui_status('✦', f"{C.BO}Finished.{C.E}  "
+                        f"Succeeded: {C.G}{success_count}{C.E}  Failed: {C.R}{fail_count}{C.E}", C.Y)
+        _ui_status('⚠', f"Failed URLs remain in '{LINKS_FILE}' for retry.", C.Y)
     _ui_separator()
     print()
 
@@ -589,37 +589,37 @@ def menu_batch(proxy: str | None):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def menu_playlist(proxy: str | None):
-    _ui_banner("ПЛЕЙЛИСТ", width=40, color=C.CN)
-    url = _ui_prompt("Ссылка на плейлист TVer.jp")
+    _ui_banner("PLAYLIST", width=40, color=C.CN)
+    url = _ui_prompt("TVer.jp playlist URL")
     if not url:
-        _ui_status('⚠', 'URL не введён. Возврат в меню.', C.Y)
+        _ui_status('⚠', 'No URL entered. Returning to menu.', C.Y)
         return
 
     print()
-    _ui_status('⟳', 'Получение информации о плейлисте…', C.CN)
+    _ui_status('⟳', 'Fetching playlist info…', C.CN)
 
     playlist = _fetch_playlist_info(url, proxy)
     if not playlist:
-        _ui_status('✗', 'Не удалось получить данные плейлиста. '
-                        'Проверьте ссылку / прокси.', C.R)
+        _ui_status('✗', 'Could not retrieve playlist data. '
+                        'Check the URL / proxy.', C.R)
         print()
         return
 
-    playlist_title = playlist.get("title") or playlist.get("playlist_title") or "Плейлист"
+    playlist_title = playlist.get("title") or playlist.get("playlist_title") or "Playlist"
     entries = playlist.get("entries", [])
     total   = len(entries)
 
     if total == 0:
-        _ui_status('⚠', 'Плейлист пуст.', C.Y)
+        _ui_status('⚠', 'Playlist is empty.', C.Y)
         print()
         return
 
     print()
     _ui_separator()
-    _ui_info_row("Плейлист  ", playlist_title)
-    _ui_info_row("Видео     ", str(total))
+    _ui_info_row("Playlist ", playlist_title)
+    _ui_info_row("Videos   ", str(total))
     if proxy:
-        _ui_info_row("Прокси    ", proxy)
+        _ui_info_row("Proxy    ", proxy)
     _ui_separator()
     print()
 
@@ -629,7 +629,7 @@ def menu_playlist(proxy: str | None):
     # ── Check archive ──────────────────────────────────────────────────
     already_count = 0
     to_download   = []
-    _ui_status('⟳', 'Проверка архива…', C.CN)
+    _ui_status('⟳', 'Checking archive…', C.CN)
     for entry in entries:
         vid_id = entry.get("id", "")
         if vid_id and _is_in_archive(vid_id):
@@ -638,14 +638,14 @@ def menu_playlist(proxy: str | None):
             to_download.append(entry)
 
     if already_count:
-        _ui_status('│', f"{C.Y}Уже скачано: {C.BO}{already_count}{C.E}"
-                        f"{C.Y} из {C.BO}{total}{C.E}. Пропускаем.", C.DG)
+        _ui_status('│', f"{C.Y}Already downloaded: {C.BO}{already_count}{C.E}"
+                        f"{C.Y} of {C.BO}{total}{C.E}. Skipping.", C.DG)
     new_count = len(to_download)
-    _ui_status('⟳', f"К загрузке: {C.W}{C.BO}{new_count}{C.E}", C.CN)
+    _ui_status('⟳', f"To download: {C.W}{C.BO}{new_count}{C.E}", C.CN)
     print()
 
     if new_count == 0:
-        _ui_status('✦', 'Все видео плейлиста уже скачаны!', C.G)
+        _ui_status('✦', 'All playlist videos are already downloaded!', C.G)
         print()
         return
 
@@ -666,7 +666,7 @@ def menu_playlist(proxy: str | None):
 
         print()
         _ui_separator(C.H)
-        print(f"  {C.H}{C.BO}» Плейлист: {playlist_title}{C.E}")
+        print(f"  {C.H}{C.BO}» Playlist: {playlist_title}{C.E}")
         _ui_separator(C.H)
 
         _ui_video_header(title, i, new_count)
@@ -676,22 +676,22 @@ def menu_playlist(proxy: str | None):
         print()
 
         if ok:
-            _ui_status('✓', 'Скачано успешно.', C.G)
+            _ui_status('✓', 'Downloaded successfully.', C.G)
             _save_metadata(title, description, OUTPUT_DIR)
             _download_thumbnail(entry_url, title, proxy)
             success_count += 1
         else:
-            _ui_status('✗', 'Ошибка скачивания.', C.R)
+            _ui_status('✗', 'Download failed.', C.R)
             fail_count += 1
 
     print()
     _ui_separator()
     if fail_count == 0:
-        _ui_status('✦', f"{C.BO}Плейлист загружен!{C.E}  "
-                        f"Успешно: {C.G}{success_count}{C.E}  Ошибок: {C.DM}0{C.E}", C.G)
+        _ui_status('✦', f"{C.BO}Playlist complete!{C.E}  "
+                        f"Succeeded: {C.G}{success_count}{C.E}  Failed: {C.DM}0{C.E}", C.G)
     else:
-        _ui_status('✦', f"{C.BO}Завершено.{C.E}  "
-                        f"Успешно: {C.G}{success_count}{C.E}  Ошибок: {C.R}{fail_count}{C.E}", C.Y)
+        _ui_status('✦', f"{C.BO}Finished.{C.E}  "
+                        f"Succeeded: {C.G}{success_count}{C.E}  Failed: {C.R}{fail_count}{C.E}", C.Y)
     _ui_separator()
     print()
 
@@ -705,14 +705,14 @@ def _main_menu():
         _ui_banner(f"TVER DOWNLOADER  v{VERSION}", width=44, color=C.CN)
 
         _ui_separator(C.DG)
-        _ui_menu_item("1", "Скачать одно видео")
-        _ui_menu_item("2", "Скачать из файла  (links.txt)")
-        _ui_menu_item("3", "Скачать плейлист")
-        _ui_menu_item("4", "Выход")
+        _ui_menu_item("1", "Download single video")
+        _ui_menu_item("2", "Download from file  (links.txt)")
+        _ui_menu_item("3", "Download playlist")
+        _ui_menu_item("4", "Exit")
         _ui_separator(C.DG)
         print()
 
-        choice = _ui_prompt("Выберите пункт (1-4)")
+        choice = _ui_prompt("Select option (1-4)")
 
         if choice == "1":
             menu_single(PROXY)
@@ -722,12 +722,12 @@ def _main_menu():
             menu_playlist(PROXY)
         elif choice == "4":
             print()
-            _ui_status('✦', 'До свидания!', C.G)
+            _ui_status('✦', 'Goodbye!', C.G)
             print()
             sys.exit(0)
         else:
             print()
-            _ui_status('⚠', f"Неизвестный выбор: '{choice}'. Введите 1–4.", C.Y)
+            _ui_status('⚠', f"Unknown option: '{choice}'. Enter 1–4.", C.Y)
             print()
 
 
@@ -748,9 +748,9 @@ if __name__ == "__main__":
 
     if not _yt_dlp_available():
         _ui_banner(f"TVER DOWNLOADER  v{VERSION}", width=44, color=C.CN)
-        _ui_status('✗', 'yt-dlp не найден в PATH.', C.R)
-        _ui_status('│', 'Установите: pip install yt-dlp', C.DG)
-        _ui_status('│', '      или:  winget install yt-dlp', C.DG)
+        _ui_status('✗', 'yt-dlp not found in PATH.', C.R)
+        _ui_status('│', 'Install: pip install yt-dlp', C.DG)
+        _ui_status('│', '    or:  winget install yt-dlp', C.DG)
         print()
         sys.exit(1)
 
@@ -759,6 +759,6 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print()
         print()
-        _ui_status('⚠', 'Прервано пользователем (Ctrl+C).', C.Y)
+        _ui_status('⚠', 'Interrupted by user (Ctrl+C).', C.Y)
         print()
         sys.exit(0)
