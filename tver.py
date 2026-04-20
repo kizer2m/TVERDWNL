@@ -491,7 +491,7 @@ def _download_video_subprocess(
     if use_archive:
         cmd.extend(["--download-archive", ARCHIVE_FILE])
     cmd.extend([
-        \"-P\", output_dir,
+        "-P", output_dir,
         "--merge-output-format", "mp4",
         "-o", "%(title)s [%(id)s].%(ext)s",
         "--embed-metadata",
