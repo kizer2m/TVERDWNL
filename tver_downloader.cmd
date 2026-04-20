@@ -1,2 +1,0 @@
-python tver_downloader.py
-pause

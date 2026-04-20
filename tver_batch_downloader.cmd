@@ -1,2 +1,0 @@
-python tver_batch_downloader.py
-pause
