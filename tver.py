@@ -532,6 +532,7 @@ def _download_video_subprocess(
         phase        = "video"     # current phase label
         spin         = 0
         merge_start: float | None = None
+        _error_lines: list[str]   = []
 
         while True:
             try:
@@ -616,6 +617,12 @@ def _download_video_subprocess(
             # ── Already in archive ─────────────────────────────────────
             if "has already been recorded" in line or "already in archive" in line:
                 _ui_status('│', f"{C.DM}Already downloaded — skipping.{C.E}", C.DG)
+                continue
+
+            # ── Collect yt-dlp errors for display on failure ───────────────
+            if line.startswith("ERROR:"):
+                # strip the ERROR: prefix and keep the message
+                _error_lines.append(line[6:].strip())
 
         # ── Merge finalise: overwrite animation line with Done ─────────
         if merge_start is not None:
@@ -630,6 +637,9 @@ def _download_video_subprocess(
             sys.stdout.flush()
 
         proc.wait()
+        if proc.returncode != 0:
+            for err in _error_lines:
+                _ui_status('│', f"{C.R}{err}{C.E}", C.DG)
         return proc.returncode == 0
 
     except FileNotFoundError:
