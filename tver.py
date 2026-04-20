@@ -365,18 +365,20 @@ def _yt_dlp_available() -> bool:
 
 def _fetch_info(url: str, proxy: str | None, flat: bool = False) -> dict | None:
     """Run yt-dlp --dump-json and return parsed dict (or None on failure)."""
-    cmd = ["yt-dlp", "--dump-json", "--no-warnings", "--quiet"]
+    cmd = ["yt-dlp", "--dump-json", "--no-warnings", "--quiet", "--no-playlist"]
     if flat:
         cmd.append("--flat-playlist")
     if proxy:
         cmd.extend(["--proxy", proxy])
     cmd.append(url)
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
+        result = subprocess.run(
+            cmd, capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=30,
+        )
         lines = [l for l in result.stdout.splitlines() if l.strip()]
         if not lines:
             return None
-        # For playlists, first line is the playlist entry; take only the first
         return json.loads(lines[0])
     except Exception:
         return None
@@ -398,7 +400,10 @@ def _fetch_playlist_info(url: str, proxy: str | None) -> dict | None:
         cmd.extend(["--proxy", proxy])
     cmd.append(url)
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
+        result = subprocess.run(
+            cmd, capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=60,
+        )
         if not result.stdout.strip():
             return None
         return json.loads(result.stdout)
@@ -486,11 +491,12 @@ def _download_video_subprocess(
     if use_archive:
         cmd.extend(["--download-archive", ARCHIVE_FILE])
     cmd.extend([
-        "-P", output_dir,
+        \"-P\", output_dir,
         "--merge-output-format", "mp4",
         "-o", "%(title)s [%(id)s].%(ext)s",
         "--embed-metadata",
         "--no-mtime",
+        "--no-playlist",
         "--newline",
         "--progress",
     ])
@@ -722,7 +728,7 @@ def menu_batch(proxy: str | None):
     to_download   = []
     _ui_status('⟳', 'Checking archive…', C.CN)
     for url in links:
-        info = _fetch_info(url, proxy, flat=True)
+        info   = _fetch_info(url, proxy)        # no flat — works for episode URLs
         vid_id = info.get("id", "") if info else ""
         if vid_id and _is_in_archive(vid_id):
             already_count += 1
