@@ -34,6 +34,9 @@ import json
 import re
 import shutil
 import socket
+import queue
+import threading
+import time
 
 VERSION      = "2.1.0"
 OUTPUT_DIR   = "Downloads"
@@ -472,32 +475,29 @@ def _download_video_subprocess(
     extra_args: list | None = None,
 ) -> bool:
     """
-    Call yt-dlp as a subprocess (no Python API hooks).
-    Progress parsing is done through newline-based stdout scanning.
+    Call yt-dlp as a subprocess.
+    Uses a reader thread + queue so the main thread can animate
+    the merge phase even while ffmpeg produces no output.
     Returns True on success.
     """
     _ensure_dir(output_dir)
 
     cmd = ["yt-dlp"]
-
     if use_archive:
         cmd.extend(["--download-archive", ARCHIVE_FILE])
-
     cmd.extend([
         "-P", output_dir,
         "--merge-output-format", "mp4",
         "-o", "%(title)s [%(id)s].%(ext)s",
         "--embed-metadata",
         "--no-mtime",
-        "--newline",          # ← forces progress updates on separate lines (parseable)
+        "--newline",
         "--progress",
     ])
-
     if proxy:
         cmd.extend(["--proxy", proxy])
     if extra_args:
         cmd.extend(extra_args)
-
     cmd.append(url)
 
     try:
@@ -510,30 +510,76 @@ def _download_video_subprocess(
             errors="replace",
         )
 
-        phase = "video"
-        spin  = 0
+        # ── Reader thread: pushes stdout lines into a queue ────────────
+        _DONE = object()           # sentinel — signals end of stream
+        line_q: queue.Queue = queue.Queue()
 
-        for raw_line in proc.stdout:
+        def _reader():
+            for ln in proc.stdout:
+                line_q.put(ln)
+            line_q.put(_DONE)
+
+        threading.Thread(target=_reader, daemon=True).start()
+
+        # ── State ──────────────────────────────────────────────────────
+        stream_index = 0           # increments on each "Destination:" line
+        phase        = "video"     # current phase label
+        spin         = 0
+        merge_start: float | None = None
+
+        while True:
+            try:
+                raw_line = line_q.get(timeout=0.09)   # ~11 fps animation
+            except queue.Empty:
+                # ── Animate merge while ffmpeg is silent ────────────────
+                if merge_start is not None:
+                    elapsed  = time.monotonic() - merge_start
+                    fake_pct = min(97.0, elapsed / (elapsed + 28) * 100)
+                    bar      = _progress_bar_str(fake_pct)
+                    label    = _phase_label("merge")
+                    sp       = _SPINNER[spin % len(_SPINNER)]
+                    spin    += 1
+                    e_str    = f"{int(elapsed // 60):02d}:{int(elapsed % 60):02d}"
+                    sys.stdout.write(
+                        f"\r  {C.CN}{sp}{C.E}  {label} {bar}"
+                        f"  {C.BO}{fake_pct:5.1f}%{C.E}"
+                        f"  {C.DM}elapsed {e_str}{C.E}   "
+                    )
+                    sys.stdout.flush()
+                continue
+
+            if raw_line is _DONE:
+                break
+
             line = raw_line.rstrip()
 
             # ── Phase detection ────────────────────────────────────────
-            if "[Merger]" in line or "Merging" in line or "ffmpeg" in line.lower():
+            # Stream counter: first Destination = video, second = audio
+            if "[download]" in line and "destination:" in line.lower():
+                stream_index += 1
+                phase = "video" if stream_index == 1 else "audio"
+                continue
+
+            # Merge detection: suppress the raw line, start timing
+            if "[Merger]" in line or "Merging formats" in line:
+                if merge_start is None:
+                    merge_start = time.monotonic()
                 phase = "merge"
-            elif "[download]" in line:
-                low = line.lower()
-                if "destination:" in low:
-                    # yt-dlp announces filename before downloading each stream
-                    if ".m4a" in low or ".aac" in low or ".opus" in low or ".webm" in low and "audio" in low:
-                        phase = "audio"
-                    else:
-                        phase = "video"
-            elif "[ExtractAudio]" in line or "audio" in line.lower():
-                phase = "audio"
+                continue
+
+            # Skip noisy internal lines
+            if any(s in line for s in (
+                "Deleting original file",
+                "already been recorded",
+                "[ffmpeg]",
+                "[ExtractAudio]",
+            )):
+                continue
 
             # ── Progress line ──────────────────────────────────────────
             pct_match = re.search(r'(\d+\.\d+)%', line)
             if pct_match and "[download]" in line:
-                pct = float(pct_match.group(1))
+                pct     = float(pct_match.group(1))
                 speed_m = re.search(r'at\s+([\d.]+\s*\S+/s)', line)
                 eta_m   = re.search(r'ETA\s+(\S+)', line)
                 speed   = speed_m.group(1) if speed_m else ""
@@ -550,8 +596,8 @@ def _download_video_subprocess(
                 sys.stdout.flush()
                 continue
 
-            # ── 100 % / Done ───────────────────────────────────────────
-            if "[download] 100%" in line or "100%" in line:
+            # ── Stream 100 % ───────────────────────────────────────────
+            if "[download] 100%" in line:
                 bar   = f"\033[92m{'━' * 22}{C.E}"
                 label = _phase_label(phase)
                 sys.stdout.write(
@@ -561,21 +607,21 @@ def _download_video_subprocess(
                 sys.stdout.flush()
                 continue
 
-            # ── Merge / post-process ───────────────────────────────────
-            if "[Merger]" in line or "Merging formats" in line:
-                sys.stdout.write(
-                    f"\r  {C.CN}⟳{C.E}  {_phase_label('merge')} {_progress_bar_str(50)}"
-                    f"  {C.DM}Merging streams…{C.E}          "
-                )
-                sys.stdout.flush()
-                continue
-
-            if "Deleting original file" in line or "already been recorded" in line:
-                continue
-
-            # ── "already downloaded" ───────────────────────────────────
+            # ── Already in archive ─────────────────────────────────────
             if "has already been recorded" in line or "already in archive" in line:
                 _ui_status('│', f"{C.DM}Already downloaded — skipping.{C.E}", C.DG)
+
+        # ── Merge finalise: overwrite animation line with Done ─────────
+        if merge_start is not None:
+            elapsed = time.monotonic() - merge_start
+            e_str   = f"{int(elapsed // 60):02d}:{int(elapsed % 60):02d}"
+            bar     = f"\033[92m{'━' * 22}{C.E}"
+            label   = _phase_label("merge")
+            sys.stdout.write(
+                f"\r  {C.G}✓{C.E}  {label} {bar}"
+                f"  {C.BO}100.0%{C.E}  {C.DM}elapsed {e_str}{C.E}  {C.G}Done!{C.E}          \n"
+            )
+            sys.stdout.flush()
 
         proc.wait()
         return proc.returncode == 0
@@ -584,6 +630,7 @@ def _download_video_subprocess(
         print()
         _ui_status('✗', 'yt-dlp not found. Install it and add it to PATH.', C.R)
         sys.exit(1)
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
