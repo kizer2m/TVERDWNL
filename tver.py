@@ -844,8 +844,6 @@ def menu_playlist(proxy: str | None):
 
 def _main_menu():
     while True:
-        _ui_banner(f"TVER DOWNLOADER  v{VERSION}", width=44, color=C.CN)
-
         _ui_separator(C.DG)
         _ui_menu_item("1", "Download single video")
         _ui_menu_item("2", "Download from file  (links.txt)")
