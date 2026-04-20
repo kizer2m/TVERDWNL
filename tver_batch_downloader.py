@@ -1,6 +1,6 @@
 """
 tver_batch_downloader.py — Batch downloader for TVer.jp
-Version: 1.0.0
+Version: 1.1.0
 
 Description:
     Reads a list of URLs from links.txt and downloads each video one by one
@@ -35,13 +35,81 @@ import subprocess
 import sys
 import os
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 # Path to the file that holds the list of URLs to download
 LINKS_FILE = "links.txt"
 # yt-dlp archive file — stores IDs of already-downloaded videos to avoid re-downloading
 ARCHIVE_FILE = "downloaded_archive.txt"
 
+
+# ─────────────────────────────────────────────────────
+#  CStyle Console — Colors & UI helpers
+# ─────────────────────────────────────────────────────
+
+class C:
+    """ANSI color shortcuts."""
+    H  = '\033[95m'   # Magenta/hot
+    B  = '\033[94m'   # Blue
+    CN = '\033[96m'   # Cyan
+    G  = '\033[92m'   # Green
+    Y  = '\033[93m'   # Yellow
+    R  = '\033[91m'   # Red
+    BO = '\033[1m'    # Bold
+    DM = '\033[2m'    # Dim
+    IT = '\033[3m'    # Italic
+    W  = '\033[97m'   # Bright White
+    DG = '\033[90m'   # Dark Gray
+    E  = '\033[0m'    # Reset
+
+
+def _ui_separator(color: str = '\033[90m'):
+    """Thin horizontal separator line."""
+    print(f"  {color}{'─' * 56}{C.E}")
+
+
+def _ui_banner(title: str, width: int = 50, color: str = C.CN):
+    """Double-line boxed banner for major sections."""
+    pad = width - len(title) - 2
+    l = pad // 2
+    r = pad - l
+    print()
+    print(f"  {color}╔{'═' * width}╗{C.E}")
+    print(f"  {color}║{' ' * l}{title}{' ' * r}║{C.E}")
+    print(f"  {color}╚{'═' * width}╝{C.E}")
+    print()
+
+
+def _ui_header(title: str, color: str = C.CN):
+    """Section header with decorative line."""
+    print()
+    print(f"  {color}{C.BO}{title}{C.E}")
+    print(f"  {color}{'─' * len(title)}{C.E}")
+    print()
+
+
+def _ui_status(icon: str, message: str, color: str = C.G):
+    """Single status line with colored icon."""
+    print(f"  {color}{icon}{C.E}  {message}")
+
+
+def _ui_info_row(label: str, value: str):
+    """Dimmed key/value info row."""
+    print(f"  {C.DG}│{C.E}  {C.DM}{label}{C.E}  {C.W}{value}{C.E}")
+
+
+def _ui_block_header(index: int, total: int, url: str):
+    """Download block header with index and (truncated) URL."""
+    short_url = url if len(url) <= 52 else url[:49] + '…'
+    print()
+    _ui_separator()
+    _ui_status('│', f"{C.DM}[{index}/{total}]{C.E}  {C.W}{short_url}{C.E}", C.DG)
+    _ui_separator()
+
+
+# ─────────────────────────────────────────────────────
+#  File helpers
+# ─────────────────────────────────────────────────────
 
 def _read_links(path: str) -> list[str]:
     """Return a list of non-empty URLs from the file, skipping comment lines (#)."""
@@ -64,6 +132,10 @@ def _remove_link_from_file(path: str, url: str) -> None:
             f.write("\n")
 
 
+# ─────────────────────────────────────────────────────
+#  Core downloader
+# ─────────────────────────────────────────────────────
+
 def download_single(url: str, output_dir: str, proxy: str | None) -> bool:
     """
     Download a single video from the given URL.
@@ -78,7 +150,7 @@ def download_single(url: str, output_dir: str, proxy: str | None) -> bool:
         "--download-archive", ARCHIVE_FILE,
         "-P", output_dir,
         "--merge-output-format", "mp4",
-        "-o", "%(title)s [%(id)s].%(ext)s",   # filename template (no path prefix — -P handles that)
+        "-o", "%(title)s [%(id)s].%(ext)s",   # filename template
         "--embed-metadata",
         "--no-mtime",
         url,
@@ -93,7 +165,8 @@ def download_single(url: str, output_dir: str, proxy: str | None) -> bool:
     except subprocess.CalledProcessError:
         return False
     except FileNotFoundError:
-        print("\n❌ Error: yt-dlp not found. Install it or add it to PATH.")
+        print()
+        _ui_status('✗', 'yt-dlp not found. Install it or add it to PATH.', C.R)
         sys.exit(1)
 
 
@@ -109,55 +182,70 @@ def download_tver_videos_from_file(output_dir: str = "Downloads", proxy: str | N
     :param output_dir: Destination folder for downloaded videos (default: Downloads)
     :param proxy:      Proxy address string or None
     """
-    print(f"TVer Batch Downloader v{VERSION}")
-    print("=" * 50)
+    _ui_banner(f'TVER BATCH  v{VERSION}', width=40, color=C.CN)
 
+    # ── Validate links.txt ───────────────────────────
     if not os.path.exists(LINKS_FILE) or os.path.getsize(LINKS_FILE) == 0:
-        print(f"❌ Error: '{LINKS_FILE}' not found or empty.")
-        print("Create the file and add URLs, one per line.")
+        _ui_status('✗', f"'{LINKS_FILE}' not found or empty.", C.R)
+        _ui_status('│', 'Create the file and add URLs, one per line.', C.DG)
+        print()
         return
 
     links = _read_links(LINKS_FILE)
     if not links:
-        print(f"ℹ️  No active URLs found in '{LINKS_FILE}'.")
+        _ui_status('⚠', f"No active URLs found in '{LINKS_FILE}'.", C.Y)
+        print()
         return
 
-    # Create the output folder if it does not exist
+    # ── Session info ─────────────────────────────────
+    _ui_header('Session Info', C.CN)
+    _ui_info_row('URLs to download', str(len(links)))
+    _ui_info_row('Archive file    ', ARCHIVE_FILE)
+    _ui_info_row('Output folder   ', output_dir)
+    if proxy:
+        _ui_info_row('Proxy           ', proxy)
+    print()
+
+    # ── Create output folder ─────────────────────────
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-        print(f"📁 Created download folder: {output_dir}")
+        _ui_status('✓', f"Created download folder: {C.DM}{output_dir}{C.E}")
 
-    if proxy:
-        print(f"🌐 Using proxy: {proxy}")
-
-    print(f"📂 URLs to download:  {len(links)}")
-    print(f"📦 Download archive:  {ARCHIVE_FILE}")
-    print(f"💾 Output folder:     {output_dir}")
-    print("-" * 50)
-
+    # ── Download loop ────────────────────────────────
     success_count = 0
-    fail_count = 0
+    fail_count    = 0
 
     for i, url in enumerate(links, start=1):
-        print(f"\n[{i}/{len(links)}] Downloading: {url}")
-        print("-" * 50)
+        _ui_block_header(i, len(links), url)
+        print()
 
         ok = download_single(url, output_dir, proxy)
+        print()
 
         if ok:
-            print(f"✅ Done: {url}")
+            _ui_status('✓', f"Downloaded successfully.", C.G)
             _remove_link_from_file(LINKS_FILE, url)
             success_count += 1
         else:
-            print(f"❌ Failed: {url}")
-            print("   URL remains in links.txt for retry.")
+            _ui_status('✗', f"Download failed.", C.R)
+            _ui_status('│', 'URL remains in links.txt for retry.', C.DG)
             fail_count += 1
 
-    print("\n" + "=" * 50)
-    print(f"🎉 All done. Succeeded: {success_count}, Failed: {fail_count}")
-    if fail_count:
-        print(f"⚠️  Failed URLs are still in '{LINKS_FILE}'.")
+    # ── Final summary ────────────────────────────────
+    print()
+    _ui_separator()
+    if fail_count == 0:
+        _ui_status('✦', f"{C.BO}All done!{C.E}  Succeeded: {C.G}{success_count}{C.E}  Failed: {C.DM}0{C.E}", C.G)
+    else:
+        _ui_status('✦', f"{C.BO}Finished.{C.E}  Succeeded: {C.G}{success_count}{C.E}  Failed: {C.R}{fail_count}{C.E}", C.Y)
+        _ui_status('⚠', f"Failed URLs are still in '{LINKS_FILE}' for retry.", C.Y)
+    _ui_separator()
+    print()
 
+
+# ─────────────────────────────────────────────────────
+#  Entry point
+# ─────────────────────────────────────────────────────
 
 if __name__ == "__main__":
 
