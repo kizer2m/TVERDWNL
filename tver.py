@@ -34,8 +34,6 @@ import json
 import re
 import shutil
 import socket
-import urllib.request
-import urllib.error
 
 VERSION      = "2.1.0"
 OUTPUT_DIR   = "Downloads"
@@ -213,30 +211,27 @@ def _load_env(path: str = ENV_FILE) -> dict:
 
 def _ensure_environment() -> None:
     """
-    Check and create required directories and files.
-    Shows a CStyle status line for each action taken.
+    Silently create required directories and files if they don't exist.
+    Only prints output when something is actually created.
     """
-    _ui_header("Environment Check", C.DG)
+    created_any = False
 
     # ── Required directories ──────────────────────────────────────────
     for d in _BASE_DIRS:
         if not os.path.exists(d):
             os.makedirs(d)
             _ui_status('✓', f"Created directory  {C.DM}{d}/{C.E}")
-        else:
-            _ui_status('│', f"Directory ready    {C.DM}{d}/{C.E}", C.DG)
+            created_any = True
 
     # ── links.txt ────────────────────────────────────────────────────
     if not os.path.exists(LINKS_FILE):
         with open(LINKS_FILE, "w", encoding="utf-8") as f:
             f.write("# Add TVer.jp video URLs here, one per line.\n")
         _ui_status('✓', f"Created file       {C.DM}{LINKS_FILE}{C.E}")
-    else:
-        _ui_status('│', f"File ready         {C.DM}{LINKS_FILE}{C.E}", C.DG)
+        created_any = True
 
     # ── .env ────────────────────────────────────────────────────────
     if not os.path.exists(ENV_FILE):
-        _ui_status('⚠', f"{C.Y}.env not found — creating default template…{C.E}", C.Y)
         with open(ENV_FILE, "w", encoding="utf-8") as f:
             f.write(
                 "# TVer Downloader — proxy configuration\n"
@@ -246,20 +241,38 @@ def _ensure_environment() -> None:
                 "# Leave empty to disable proxy:\n"
                 "TVER_PROXY=\n"
             )
-        _ui_status('✓', f"Created file       {C.DM}{ENV_FILE}{C.E}")
-        _ui_status('│', f"{C.DM}Edit {ENV_FILE} and set TVER_PROXY to your proxy address.{C.E}", C.DG)
-    else:
-        _ui_status('│', f"File ready         {C.DM}{ENV_FILE}{C.E}", C.DG)
+        _ui_status('⚠', f"{C.Y}.env created — add your TVER_PROXY to {C.W}{ENV_FILE}{C.Y}.{C.E}", C.Y)
+        created_any = True
 
-    print()
+    if created_any:
+        print()
+
+
+def _parse_proxy_host_port(proxy: str) -> tuple[str, int] | None:
+    """
+    Extract (host, port) from a proxy URL of the form:
+      scheme://[user:pass@]host:port
+    Returns None if parsing fails.
+    """
+    try:
+        # Strip scheme
+        rest = proxy.split("://", 1)[-1]   # user:pass@host:port  or  host:port
+        # Strip credentials if present
+        if "@" in rest:
+            rest = rest.rsplit("@", 1)[-1]  # host:port
+        host, port_str = rest.rsplit(":", 1)
+        return host.strip(), int(port_str.strip())
+    except Exception:
+        return None
 
 
 def _check_proxy(proxy: str | None) -> bool | None:
     """
-    Validate proxy reachability by connecting to tver.jp via HTTP HEAD.
+    Validate proxy by opening a raw TCP connection to proxy host:port.
+    Works for HTTP, HTTPS, and SOCKS5 without external libraries.
     Returns:
-        True  — proxy is reachable and working
-        False — proxy is configured but NOT reachable
+        True  — proxy host:port is reachable
+        False — connection refused / timed out
         None  — no proxy configured
     """
     if not proxy:
@@ -267,20 +280,17 @@ def _check_proxy(proxy: str | None) -> bool | None:
 
     _ui_status('⟳', f"Checking proxy  {C.DM}{proxy}{C.E}", C.CN)
 
-    test_url = "https://tver.jp"
+    addr = _parse_proxy_host_port(proxy)
+    if addr is None:
+        _ui_status('⚠', f"{C.Y}Could not parse proxy address.{C.E}", C.Y)
+        return False
+
+    host, port = addr
     try:
-        opener = urllib.request.OpenerDirector()
-        handler = urllib.request.ProxyHandler({"http": proxy, "https": proxy})
-        opener.add_handler(handler)
-        opener.add_handler(urllib.request.HTTPSHandler())
-        req = urllib.request.Request(
-            test_url,
-            headers={"User-Agent": "Mozilla/5.0"},
-            method="HEAD",
-        )
-        opener.open(req, timeout=10)
+        with socket.create_connection((host, port), timeout=8):
+            pass
         return True
-    except Exception:
+    except (OSError, socket.timeout):
         return False
 
 
