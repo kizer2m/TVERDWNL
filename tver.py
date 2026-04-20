@@ -892,8 +892,6 @@ if __name__ == "__main__":
         _ui_status('│', '    or:  winget install yt-dlp', C.DG)
         print()
         sys.exit(1)
-    _ui_status('✓', f"{C.G}yt-dlp found.{C.E}")
-    print()
 
     # ── Environment check (dirs, files) ───────────────────────────────
     _ensure_environment()
