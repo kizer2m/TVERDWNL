@@ -1,6 +1,6 @@
 """
 tver.py — Unified TVer.jp Downloader
-Version: 2.0.0
+Version: 2.1.0
 
 Description:
     All-in-one downloader for TVer.jp with an interactive 4-option menu:
@@ -33,12 +33,19 @@ import os
 import json
 import re
 import shutil
+import socket
+import urllib.request
+import urllib.error
 
-VERSION    = "2.0.0"
-OUTPUT_DIR = "Downloads"
-LINKS_FILE = "links.txt"
+VERSION      = "2.1.0"
+OUTPUT_DIR   = "Downloads"
+LINKS_FILE   = "links.txt"
 ARCHIVE_FILE = "downloaded_archive.txt"
-THUMB_DIR  = os.path.join(OUTPUT_DIR, "thumbnails")
+THUMB_DIR    = os.path.join(OUTPUT_DIR, "thumbnails")
+ENV_FILE     = ".env"
+
+# Directories that must exist before the script runs
+_BASE_DIRS = [OUTPUT_DIR, THUMB_DIR]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -178,6 +185,131 @@ def _build_progress_hook(phase: str):
             sys.stdout.flush()
 
     return hook
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Startup — Environment check, .env loader, proxy validator
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _load_env(path: str = ENV_FILE) -> dict:
+    """
+    Parse a simple KEY=VALUE .env file.
+    Lines starting with # or empty lines are ignored.
+    Returns a dict of {KEY: VALUE}.
+    """
+    result = {}
+    if not os.path.exists(path):
+        return result
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" in line:
+                key, _, val = line.partition("=")
+                result[key.strip()] = val.strip()
+    return result
+
+
+def _ensure_environment() -> None:
+    """
+    Check and create required directories and files.
+    Shows a CStyle status line for each action taken.
+    """
+    _ui_header("Environment Check", C.DG)
+
+    # ── Required directories ──────────────────────────────────────────
+    for d in _BASE_DIRS:
+        if not os.path.exists(d):
+            os.makedirs(d)
+            _ui_status('✓', f"Created directory  {C.DM}{d}/{C.E}")
+        else:
+            _ui_status('│', f"Directory ready    {C.DM}{d}/{C.E}", C.DG)
+
+    # ── links.txt ────────────────────────────────────────────────────
+    if not os.path.exists(LINKS_FILE):
+        with open(LINKS_FILE, "w", encoding="utf-8") as f:
+            f.write("# Add TVer.jp video URLs here, one per line.\n")
+        _ui_status('✓', f"Created file       {C.DM}{LINKS_FILE}{C.E}")
+    else:
+        _ui_status('│', f"File ready         {C.DM}{LINKS_FILE}{C.E}", C.DG)
+
+    # ── .env ────────────────────────────────────────────────────────
+    if not os.path.exists(ENV_FILE):
+        _ui_status('⚠', f"{C.Y}.env not found — creating default template…{C.E}", C.Y)
+        with open(ENV_FILE, "w", encoding="utf-8") as f:
+            f.write(
+                "# TVer Downloader — proxy configuration\n"
+                "# Supported formats:\n"
+                "#   HTTP:   TVER_PROXY=http://user:pass@host:port\n"
+                "#   SOCKS5: TVER_PROXY=socks5://user:pass@host:port\n"
+                "# Leave empty to disable proxy:\n"
+                "TVER_PROXY=\n"
+            )
+        _ui_status('✓', f"Created file       {C.DM}{ENV_FILE}{C.E}")
+        _ui_status('│', f"{C.DM}Edit {ENV_FILE} and set TVER_PROXY to your proxy address.{C.E}", C.DG)
+    else:
+        _ui_status('│', f"File ready         {C.DM}{ENV_FILE}{C.E}", C.DG)
+
+    print()
+
+
+def _check_proxy(proxy: str | None) -> bool | None:
+    """
+    Validate proxy reachability by connecting to tver.jp via HTTP HEAD.
+    Returns:
+        True  — proxy is reachable and working
+        False — proxy is configured but NOT reachable
+        None  — no proxy configured
+    """
+    if not proxy:
+        return None
+
+    _ui_status('⟳', f"Checking proxy  {C.DM}{proxy}{C.E}", C.CN)
+
+    test_url = "https://tver.jp"
+    try:
+        opener = urllib.request.OpenerDirector()
+        handler = urllib.request.ProxyHandler({"http": proxy, "https": proxy})
+        opener.add_handler(handler)
+        opener.add_handler(urllib.request.HTTPSHandler())
+        req = urllib.request.Request(
+            test_url,
+            headers={"User-Agent": "Mozilla/5.0"},
+            method="HEAD",
+        )
+        opener.open(req, timeout=10)
+        return True
+    except Exception:
+        return False
+
+
+def _startup_proxy_check(env: dict) -> str | None:
+    """
+    Load proxy from env dict, validate it, print CStyle result.
+    Returns the proxy string to use (or None).
+    """
+    raw = env.get("TVER_PROXY", "").strip()
+    proxy = raw if raw else None
+
+    _ui_header("Proxy Status", C.DG)
+
+    if proxy is None:
+        _ui_status('⚠', f"{C.Y}No proxy configured in {C.W}{ENV_FILE}{C.Y}.{C.E}", C.Y)
+        _ui_status('│', f"{C.DM}TVer.jp is geo-restricted to Japan.{C.E}", C.DG)
+        _ui_status('│', f"{C.DM}Add TVER_PROXY=... to {ENV_FILE} or enable a Japanese VPN.{C.E}", C.DG)
+        print()
+        return None
+
+    result = _check_proxy(proxy)
+
+    if result is True:
+        _ui_status('✓', f"{C.G}Proxy is {C.BO}ready{C.E}{C.G}.{C.E}  {C.DM}{proxy}{C.E}")
+    else:
+        _ui_status('✗', f"{C.R}Proxy is {C.BO}not responding{C.E}{C.R}.{C.E}  {C.DM}{proxy}{C.E}", C.R)
+        _ui_status('│', f"{C.DM}Tip: Check proxy credentials/host, or switch to a Japanese VPN.{C.E}", C.DG)
+    print()
+    return proxy
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -740,20 +872,27 @@ if __name__ == "__main__":
     # Change working directory to script location so relative paths work
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-    # ── Proxy setup ───────────────────────────────────────────────────
-    # Uncomment and fill in your proxy if TVer is geo-blocked in your region:
-    # PROXY = 'http://127.0.0.1:8080'
-    # PROXY = 'socks5://user:pass@host:port'
-    PROXY: str | None = None
+    # ── Startup banner ────────────────────────────────────────────────
+    _ui_banner(f"TVER DOWNLOADER  v{VERSION}", width=44, color=C.CN)
 
+    # ── Check yt-dlp ──────────────────────────────────────────────────
     if not _yt_dlp_available():
-        _ui_banner(f"TVER DOWNLOADER  v{VERSION}", width=44, color=C.CN)
         _ui_status('✗', 'yt-dlp not found in PATH.', C.R)
         _ui_status('│', 'Install: pip install yt-dlp', C.DG)
         _ui_status('│', '    or:  winget install yt-dlp', C.DG)
         print()
         sys.exit(1)
+    _ui_status('✓', f"{C.G}yt-dlp found.{C.E}")
+    print()
 
+    # ── Environment check (dirs, files) ───────────────────────────────
+    _ensure_environment()
+
+    # ── Load .env and validate proxy ──────────────────────────────────
+    _env = _load_env(ENV_FILE)
+    PROXY = _startup_proxy_check(_env)
+
+    # ── Launch menu ───────────────────────────────────────────────────
     try:
         _main_menu()
     except KeyboardInterrupt:
