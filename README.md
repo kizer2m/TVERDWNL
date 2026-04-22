@@ -1,6 +1,6 @@
 # TVer Downloader
 
-**Version: 2.2.0**
+**Version: 2.3.0**
 
 A Python CLI tool for downloading videos from the Japanese streaming service [TVer.jp](https://tver.jp) using `yt-dlp`.  
 Features a premium **CStyle Console UI** — colored output, animated progress bars, phase tracking (video / audio / merge), and consistent status icons.
@@ -39,6 +39,9 @@ Features a premium **CStyle Console UI** — colored output, animated progress b
 
 - **Python 3.10+**
 - **yt-dlp** — *automatically installed/updated on startup*
+- **ffmpeg** — *required for merging video/audio streams*
+
+### yt-dlp (automatic)
 
 No manual installation of yt-dlp is required. On every launch the script:
 1. Detects whether `yt-dlp` is installed
@@ -54,6 +57,17 @@ pip install yt-dlp       # install
 pip install --upgrade yt-dlp  # update
 ```
 
+### ffmpeg (must be installed manually)
+
+`ffmpeg` is needed to merge separate video and audio streams into a single MP4 file.  
+The script checks for `ffmpeg` and `ffprobe` on startup and will **refuse to start** if `ffmpeg` is missing.
+
+| Platform | Install command |
+|---|---|
+| **macOS** | `brew install ffmpeg` |
+| **Windows** | `winget install ffmpeg` |
+| **Linux** | `sudo apt install ffmpeg` (or your package manager) |
+
 No additional Python packages are required — the script uses only the standard library.
 
 ---
@@ -68,9 +82,10 @@ Or double-click `tver.cmd` on Windows.
 
 On each start the script automatically:
 1. **Installs or updates** `yt-dlp` (with animated progress bar)
-2. Creates `Downloads/`, `Downloads/thumbnails/`, `links.txt`, and `.env` if they are missing
-3. Reads the proxy from `.env` and validates it (TCP connection to the proxy host)
-4. Opens the interactive menu
+2. **Checks** that `ffmpeg` / `ffprobe` are available in PATH
+3. Creates `Downloads/`, `Downloads/thumbnails/`, `links.txt`, and `.env` if they are missing
+4. Reads the proxy from `.env` and validates it (TCP connection to the proxy host)
+5. Opens the interactive menu
 
 ---
 
@@ -211,13 +226,21 @@ The script uses the **CStyle Console** design system throughout:
 | `⚠  Update check failed` | Network issue during upgrade | Script continues with the installed version |
 | `✗  Proxy is not responding` | Proxy host unreachable | Fix credentials or enable a Japanese VPN |
 | `⚠  No proxy configured` | `TVER_PROXY` is empty | Add proxy to `.env` or use a VPN |
+| `✗  ffmpeg is not installed` | ffmpeg not found in PATH | Install: `brew install ffmpeg` (macOS) / `winget install ffmpeg` (Win) |
 | Non-zero exit code from yt-dlp | Geo-restriction or video removed | Ensure Japanese IP is active |
 | Video skipped silently | ID already in `downloaded_archive.txt` | Remove its entry from the archive |
 | `✗  links.txt not found or empty` | Batch mode with no URLs | Add URLs to `links.txt` |
+| Download hangs (blinking cursor) | ffmpeg missing — yt-dlp cannot merge streams | Install ffmpeg and restart |
 
 ---
 
 ## Changelog
+
+### v2.3.0
+- **System dependency checks**: startup now verifies `ffmpeg` and `ffprobe` are in PATH
+- Platform-aware install hints (macOS: `brew`, Windows: `winget`, Linux: `apt`)
+- Script refuses to start if `ffmpeg` is missing — prevents silent download hangs
+- Fixed macOS issue: downloads appeared to hang (blinking cursor) when ffmpeg was absent
 
 ### v2.2.0
 - **Auto-dependency management**: yt-dlp is automatically installed if missing, or upgraded if outdated
@@ -255,4 +278,4 @@ MIT — free to use.
 
 ---
 
-*TVer Downloader v2.2.0 · Author: kizer2m*
+*TVer Downloader v2.3.0 · Author: kizer2m*

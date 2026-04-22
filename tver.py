@@ -38,7 +38,7 @@ import queue
 import threading
 import time
 
-VERSION      = "2.2.0"
+VERSION      = "2.3.0"
 OUTPUT_DIR   = "Downloads"
 LINKS_FILE   = "links.txt"
 ARCHIVE_FILE = "downloaded_archive.txt"
@@ -505,11 +505,41 @@ _REQUIRED_PACKAGES = [
     },
 ]
 
+# ── System-level binaries (not managed by pip) ───────────────────────────
+_SYSTEM_DEPS = [
+    {
+        "name": "ffmpeg",
+        "critical": True,
+        "hint_mac":   "brew install ffmpeg",
+        "hint_linux": "sudo apt install ffmpeg   (or your package manager)",
+        "hint_win":   "winget install ffmpeg",
+    },
+    {
+        "name": "ffprobe",
+        "critical": False,
+        "hint_mac":   "brew install ffmpeg   (includes ffprobe)",
+        "hint_linux": "sudo apt install ffmpeg   (includes ffprobe)",
+        "hint_win":   "winget install ffmpeg   (includes ffprobe)",
+    },
+]
+
+
+def _detect_platform() -> str:
+    """Return 'mac', 'win', or 'linux'."""
+    import platform
+    s = platform.system().lower()
+    if s == "darwin":
+        return "mac"
+    if s == "windows":
+        return "win"
+    return "linux"
+
 
 def _ensure_dependencies() -> None:
     """
     At startup: check every required package, install if missing,
     and offer an upgrade check — all with CStyle Console progress.
+    Then verify system-level binaries (ffmpeg, ffprobe).
     """
     _ui_header("Dependencies", C.DG)
 
@@ -552,6 +582,34 @@ def _ensure_dependencies() -> None:
             else:
                 _ui_status('⚠', f"{C.Y}Update check failed for {name}: {msg}{C.E}", C.Y)
                 _ui_status('│', f"{C.DM}Continuing with installed version v{cur_ver}.{C.E}", C.DG)
+
+    # ── System-level binaries ─────────────────────────────────────────────
+    plat = _detect_platform()
+    hint_key = f"hint_{plat}"
+    missing_critical = False
+
+    for dep in _SYSTEM_DEPS:
+        name     = dep["name"]
+        critical = dep.get("critical", False)
+
+        if shutil.which(name) is not None:
+            _ui_status('✓', f"{C.G}{name}{C.E}  {C.DM}— found{C.E}")
+        else:
+            icon  = '✗' if critical else '⚠'
+            color = C.R if critical else C.Y
+            _ui_status(icon, f"{color}{name} is {C.BO}not installed{C.E}{color}.{C.E}", color)
+            hint = dep.get(hint_key, "")
+            if hint:
+                _ui_status('│', f"{C.DM}Install: {C.W}{hint}{C.E}", C.DG)
+            if critical:
+                missing_critical = True
+
+    if missing_critical:
+        print()
+        _ui_status('✗', f"{C.R}Cannot continue without {C.BO}ffmpeg{C.E}{C.R}. "
+                        f"Install it and re-run.{C.E}", C.R)
+        print()
+        sys.exit(1)
 
     print()
 
