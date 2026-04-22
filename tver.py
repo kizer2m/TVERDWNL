@@ -509,6 +509,14 @@ _REQUIRED_PACKAGES = [
         "check_cmd": "yt-dlp",          # binary name in PATH
         "critical": True,               # script cannot run without it
     },
+    {
+        # Required by yt-dlp for AES-128 HLS stream decryption.
+        # Without it, yt-dlp delegates downloads to ffmpeg which:
+        #   1) outputs frame-based progress instead of [download] %
+        #   2) does not support SOCKS proxies
+        "name": "pycryptodomex",
+        "critical": False,
+    },
 ]
 
 # ── System-level binaries (not managed by pip) ───────────────────────────
@@ -551,11 +559,16 @@ def _ensure_dependencies() -> None:
 
     for pkg in _REQUIRED_PACKAGES:
         name     = pkg["name"]
-        bin_name = pkg.get("check_cmd", name)
+        bin_name = pkg.get("check_cmd")       # None for library-only packages
         critical = pkg.get("critical", False)
 
-        installed = shutil.which(bin_name) is not None
-        cur_ver   = _get_installed_version(name) if installed else None
+        # Packages with a CLI binary are checked via PATH;
+        # library-only packages are checked via pip show.
+        if bin_name:
+            installed = shutil.which(bin_name) is not None
+        else:
+            installed = _get_installed_version(name) is not None
+        cur_ver = _get_installed_version(name) if installed else None
 
         if not installed:
             # ── Package is MISSING → install ──────────────────────────
