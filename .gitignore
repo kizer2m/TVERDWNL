@@ -3,6 +3,7 @@
 # ─────────────────────────────────────────
 /Downloads/
 *.txt
+debug.log
 
 # ─────────────────────────────────────────
 #  AI assistant guidelines  (local only)
