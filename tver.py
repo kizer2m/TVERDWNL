@@ -38,7 +38,7 @@ import queue
 import threading
 import time
 
-VERSION      = "2.1.1"
+VERSION      = "2.2.0"
 OUTPUT_DIR   = "Downloads"
 LINKS_FILE   = "links.txt"
 ARCHIVE_FILE = "downloaded_archive.txt"
@@ -357,6 +357,203 @@ def _remove_link_from_file(path: str, url: str):
 
 def _yt_dlp_available() -> bool:
     return shutil.which("yt-dlp") is not None
+
+
+def _get_installed_version(package: str) -> str | None:
+    """Return the installed version string for a pip package, or None."""
+    try:
+        r = subprocess.run(
+            [sys.executable, "-m", "pip", "show", package],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=15,
+        )
+        for line in r.stdout.splitlines():
+            if line.startswith("Version:"):
+                return line.split(":", 1)[1].strip()
+    except Exception:
+        pass
+    return None
+
+
+def _pip_install_with_progress(
+    package: str,
+    *,
+    upgrade: bool = False,
+    action_label: str = "Installing",
+) -> tuple[bool, str]:
+    """
+    Run pip install (with optional --upgrade) and render a CStyle Console
+    progress bar while pip works.
+
+    Returns (success: bool, message: str).
+    """
+    cmd = [sys.executable, "-m", "pip", "install"]
+    if upgrade:
+        cmd.append("--upgrade")
+    cmd.append(package)
+
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except FileNotFoundError:
+        return False, "pip is not available"
+
+    # ── Reader thread ─────────────────────────────────────────────────
+    _SENTINEL = object()
+    line_q: queue.Queue = queue.Queue()
+
+    def _reader():
+        for ln in proc.stdout:
+            line_q.put(ln)
+        line_q.put(_SENTINEL)
+
+    threading.Thread(target=_reader, daemon=True).start()
+
+    # ── Phase tracking ────────────────────────────────────────────────
+    phases = {
+        "collect":    (C.CN, "⟳", "Collecting"),
+        "download":   (C.B,  "▼", "Downloading"),
+        "install":    (C.G,  "⊕", "Installing"),
+        "uninstall":  (C.Y,  "⊖", "Uninstalling"),
+        "check":      (C.DG, "⟳", "Checking"),
+    }
+    current_phase = "collect"
+    spin = 0
+    fake_pct = 0.0
+    phase_start = time.monotonic()
+    result_msg = ""
+    new_version = ""
+
+    while True:
+        try:
+            raw = line_q.get(timeout=0.08)
+        except queue.Empty:
+            # ── Animate current phase ─────────────────────────────────
+            elapsed = time.monotonic() - phase_start
+            fake_pct = min(95.0, elapsed / (elapsed + 6) * 100)
+            bar = _progress_bar_str(fake_pct, width=20)
+            color, icon, label = phases.get(current_phase, (C.DG, "⟳", current_phase))
+            sp = _SPINNER[spin % len(_SPINNER)]
+            spin += 1
+            sys.stdout.write(
+                f"\r  {C.CN}{sp}{C.E}  {color}{icon} {label:<14}{C.E}"
+                f" {bar}  {C.BO}{fake_pct:5.1f}%{C.E}   "
+            )
+            sys.stdout.flush()
+            continue
+
+        if raw is _SENTINEL:
+            break
+
+        line = raw.strip().lower()
+
+        # ── Detect pip phases from output ─────────────────────────────
+        if "collecting" in line or "using cached" in line:
+            if current_phase != "collect":
+                current_phase = "collect"
+                phase_start = time.monotonic()
+        elif "downloading" in line:
+            if current_phase != "download":
+                current_phase = "download"
+                phase_start = time.monotonic()
+        elif "installing" in line:
+            if current_phase != "install":
+                current_phase = "install"
+                phase_start = time.monotonic()
+        elif "uninstalling" in line:
+            if current_phase != "uninstall":
+                current_phase = "uninstall"
+                phase_start = time.monotonic()
+
+        # ── Capture result messages ───────────────────────────────────
+        raw_orig = raw.strip()
+        if "successfully installed" in line:
+            result_msg = raw_orig
+            # Extract version: "Successfully installed yt-dlp-2025.3.31"
+            m = re.search(r'yt-dlp-(\S+)', raw_orig, re.IGNORECASE)
+            if m:
+                new_version = m.group(1)
+        elif "already satisfied" in line:
+            result_msg = raw_orig
+        elif "already up-to-date" in line or "already up to date" in line:
+            result_msg = raw_orig
+
+    # ── Clear progress line and show result ───────────────────────────
+    sys.stdout.write("\r\033[K")
+    sys.stdout.flush()
+
+    proc.wait()
+
+    if proc.returncode == 0:
+        return True, new_version or result_msg
+    else:
+        return False, result_msg or "pip returned an error"
+
+
+# ── Required packages ────────────────────────────────────────────────────
+_REQUIRED_PACKAGES = [
+    {
+        "name": "yt-dlp",
+        "check_cmd": "yt-dlp",          # binary name in PATH
+        "critical": True,               # script cannot run without it
+    },
+]
+
+
+def _ensure_dependencies() -> None:
+    """
+    At startup: check every required package, install if missing,
+    and offer an upgrade check — all with CStyle Console progress.
+    """
+    _ui_header("Dependencies", C.DG)
+
+    for pkg in _REQUIRED_PACKAGES:
+        name     = pkg["name"]
+        bin_name = pkg.get("check_cmd", name)
+        critical = pkg.get("critical", False)
+
+        installed = shutil.which(bin_name) is not None
+        cur_ver   = _get_installed_version(name) if installed else None
+
+        if not installed:
+            # ── Package is MISSING → install ──────────────────────────
+            _ui_status('⟳', f"{C.CN}Installing {C.W}{C.BO}{name}{C.E}{C.CN}…{C.E}", C.CN)
+            print()
+            ok, msg = _pip_install_with_progress(name, action_label="Installing")
+            if ok:
+                new_ver = msg if msg and not msg.startswith("Requirement") else _get_installed_version(name) or "unknown"
+                _ui_status('✓', f"{C.G}{name} {C.W}{C.BO}v{new_ver}{C.E}{C.G} installed.{C.E}")
+            else:
+                _ui_status('✗', f"{C.R}Failed to install {name}: {msg}{C.E}", C.R)
+                if critical:
+                    _ui_status('│', f"{C.DM}Install manually: pip install {name}{C.E}", C.DG)
+                    print()
+                    sys.exit(1)
+        else:
+            # ── Package exists → check for updates ────────────────────
+            _ui_status('⟳', f"{C.CN}Checking {C.W}{C.BO}{name}{C.E}"
+                            f"  {C.DM}v{cur_ver}{C.E}{C.CN}  for updates…{C.E}", C.CN)
+            print()
+            ok, msg = _pip_install_with_progress(name, upgrade=True, action_label="Updating")
+            if ok:
+                new_ver = _get_installed_version(name) or cur_ver
+                if new_ver != cur_ver:
+                    _ui_status('✓', f"{C.G}{name} updated  {C.DM}v{cur_ver}{C.E}"
+                                    f" {C.G}→{C.E} {C.W}{C.BO}v{new_ver}{C.E}")
+                else:
+                    _ui_status('✓', f"{C.G}{name} {C.W}{C.BO}v{cur_ver}{C.E}{C.G}"
+                                    f"  — up to date.{C.E}")
+            else:
+                _ui_status('⚠', f"{C.Y}Update check failed for {name}: {msg}{C.E}", C.Y)
+                _ui_status('│', f"{C.DM}Continuing with installed version v{cur_ver}.{C.E}", C.DG)
+
+    print()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -946,13 +1143,8 @@ if __name__ == "__main__":
     # ── Startup banner ────────────────────────────────────────────────
     _ui_banner(f"TVER DOWNLOADER  v{VERSION}", width=44, color=C.CN)
 
-    # ── Check yt-dlp ──────────────────────────────────────────────────
-    if not _yt_dlp_available():
-        _ui_status('✗', 'yt-dlp not found in PATH.', C.R)
-        _ui_status('│', 'Install: pip install yt-dlp', C.DG)
-        _ui_status('│', '    or:  winget install yt-dlp', C.DG)
-        print()
-        sys.exit(1)
+    # ── Check / install / update dependencies ────────────────────────
+    _ensure_dependencies()
 
     # ── Environment check (dirs, files) ───────────────────────────────
     _ensure_environment()

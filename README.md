@@ -1,6 +1,6 @@
 # TVer Downloader
 
-**Version: 2.1.0**
+**Version: 2.2.0**
 
 A Python CLI tool for downloading videos from the Japanese streaming service [TVer.jp](https://tver.jp) using `yt-dlp`.  
 Features a premium **CStyle Console UI** — colored output, animated progress bars, phase tracking (video / audio / merge), and consistent status icons.
@@ -38,19 +38,20 @@ Features a premium **CStyle Console UI** — colored output, animated progress b
 ## Dependencies
 
 - **Python 3.10+**
-- **yt-dlp**
+- **yt-dlp** — *automatically installed/updated on startup*
 
-Install yt-dlp:
+No manual installation of yt-dlp is required. On every launch the script:
+1. Detects whether `yt-dlp` is installed
+2. **Installs** it via `pip` if missing
+3. **Checks for updates** and upgrades to the latest version if already installed
+
+All of this runs with an animated CStyle Console progress bar.
+
+If you prefer to manage yt-dlp yourself:
 
 ```bash
-# via pip
-pip install yt-dlp
-
-# via winget (Windows)
-winget install yt-dlp
-
-# update to the latest version
-yt-dlp -U
+pip install yt-dlp       # install
+pip install --upgrade yt-dlp  # update
 ```
 
 No additional Python packages are required — the script uses only the standard library.
@@ -66,7 +67,7 @@ python tver.py
 Or double-click `tver.cmd` on Windows.
 
 On each start the script automatically:
-1. Checks that `yt-dlp` is available in PATH
+1. **Installs or updates** `yt-dlp` (with animated progress bar)
 2. Creates `Downloads/`, `Downloads/thumbnails/`, `links.txt`, and `.env` if they are missing
 3. Reads the proxy from `.env` and validates it (TCP connection to the proxy host)
 4. Opens the interactive menu
@@ -206,7 +207,8 @@ The script uses the **CStyle Console** design system throughout:
 
 | Error | Cause | Fix |
 |---|---|---|
-| `✗  yt-dlp not found` | yt-dlp is not installed or not in PATH | `pip install yt-dlp` |
+| `✗  Failed to install yt-dlp` | pip unavailable or network issue | Install pip or check internet connection |
+| `⚠  Update check failed` | Network issue during upgrade | Script continues with the installed version |
 | `✗  Proxy is not responding` | Proxy host unreachable | Fix credentials or enable a Japanese VPN |
 | `⚠  No proxy configured` | `TVER_PROXY` is empty | Add proxy to `.env` or use a VPN |
 | Non-zero exit code from yt-dlp | Geo-restriction or video removed | Ensure Japanese IP is active |
@@ -216,6 +218,12 @@ The script uses the **CStyle Console** design system throughout:
 ---
 
 ## Changelog
+
+### v2.2.0
+- **Auto-dependency management**: yt-dlp is automatically installed if missing, or upgraded if outdated
+- Animated CStyle Console progress bar during pip install/upgrade (phase tracking: Collecting → Downloading → Installing)
+- Graceful fallback: if upgrade check fails, the script continues with the installed version
+- Extensible `_REQUIRED_PACKAGES` list for future dependencies
 
 ### v2.1.0
 - `.env` file for proxy configuration (no more hardcoded proxy in code)
@@ -247,4 +255,4 @@ MIT — free to use.
 
 ---
 
-*TVer Downloader v2.1.0 · Author: kizer2m*
+*TVer Downloader v2.2.0 · Author: kizer2m*
