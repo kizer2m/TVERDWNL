@@ -44,6 +44,8 @@ LINKS_FILE   = "links.txt"
 ARCHIVE_FILE = "downloaded_archive.txt"
 THUMB_DIR    = os.path.join(OUTPUT_DIR, "thumbnails")
 ENV_FILE     = ".env"
+DEBUG_LOG    = "debug.log"
+DEBUG        = False           # set via TVER_DEBUG=1 in .env
 
 # Directories that must exist before the script runs
 _BASE_DIRS = [OUTPUT_DIR, THUMB_DIR]
@@ -767,6 +769,15 @@ def _download_video_subprocess(
         cmd.extend(extra_args)
     cmd.append(url)
 
+    # ── Debug: log the full command ────────────────────────────────────
+    if DEBUG:
+        cmd_str = ' '.join(cmd)
+        _ui_status('│', f"{C.DM}[DEBUG] cmd: {cmd_str}{C.E}", C.DG)
+        with open(DEBUG_LOG, 'a', encoding='utf-8') as _lf:
+            _lf.write(f"\n{'=' * 60}\n")
+            _lf.write(f"CMD: {cmd_str}\n")
+            _lf.write(f"{'=' * 60}\n")
+
     try:
         proc = subprocess.Popen(
             cmd,
@@ -790,6 +801,10 @@ def _download_video_subprocess(
                 if not ln:
                     break
                 line_q.put(ln)
+                # ── Debug: log every raw line ──────────────────────────
+                if DEBUG:
+                    with open(DEBUG_LOG, 'a', encoding='utf-8') as _lf:
+                        _lf.write(ln)
             line_q.put(_DONE)
 
         threading.Thread(target=_reader, daemon=True).start()
@@ -826,6 +841,10 @@ def _download_video_subprocess(
                 break
 
             line = raw_line.rstrip()
+
+            # ── Debug: show raw line in console ───────────────────────
+            if DEBUG:
+                print(f"  {C.DG}│{C.E}  {C.DM}[RAW] {repr(line)}{C.E}")
 
             # ── Phase detection ────────────────────────────────────────
             # Stream counter: first Destination = video, second = audio
@@ -1220,6 +1239,20 @@ if __name__ == "__main__":
     # ── Load .env and validate proxy ──────────────────────────────────
     _env = _load_env(ENV_FILE)
     PROXY = _startup_proxy_check(_env)
+
+    # ── Debug mode ────────────────────────────────────────────────────
+    DEBUG = _env.get("TVER_DEBUG", "").strip() in ("1", "true", "yes")
+    if DEBUG:
+        _ui_status('⚠', f"{C.Y}Debug mode is {C.BO}ON{C.E}{C.Y}. "
+                        f"Raw output → {C.W}{DEBUG_LOG}{C.E}", C.Y)
+        # Clear previous log
+        with open(DEBUG_LOG, 'w', encoding='utf-8') as f:
+            f.write(f"=== TVER DOWNLOADER v{VERSION} — DEBUG LOG ===\n")
+            import platform
+            f.write(f"Platform: {platform.system()} {platform.release()}\n")
+            f.write(f"Python:   {sys.version}\n")
+            f.write(f"\n")
+        print()
 
     # ── Launch menu ───────────────────────────────────────────────────
     try:
