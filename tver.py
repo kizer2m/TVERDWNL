@@ -398,6 +398,7 @@ def _pip_install_with_progress(
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            bufsize=1,
             encoding="utf-8",
             errors="replace",
         )
@@ -409,7 +410,10 @@ def _pip_install_with_progress(
     line_q: queue.Queue = queue.Queue()
 
     def _reader():
-        for ln in proc.stdout:
+        while True:
+            ln = proc.stdout.readline()
+            if not ln:
+                break
             line_q.put(ln)
         line_q.put(_SENTINEL)
 
@@ -769,16 +773,22 @@ def _download_video_subprocess(
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            bufsize=1,
             encoding="utf-8",
             errors="replace",
         )
 
         # ── Reader thread: pushes stdout lines into a queue ────────────
+        #    Uses readline() instead of iterator to avoid the 8 KB
+        #    read-ahead buffer that silently swallows progress on macOS.
         _DONE = object()           # sentinel — signals end of stream
         line_q: queue.Queue = queue.Queue()
 
         def _reader():
-            for ln in proc.stdout:
+            while True:
+                ln = proc.stdout.readline()
+                if not ln:
+                    break
                 line_q.put(ln)
             line_q.put(_DONE)
 
