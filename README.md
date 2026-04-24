@@ -18,7 +18,6 @@ Features a premium **CStyle Console UI** — colored output, animated progress b
 - [Folder Structure](#folder-structure)
 - [UI Design System](#ui-design-system)
 - [Common Errors](#common-errors)
-- [Changelog](#changelog)
 - [License](#license)
 
 ---
@@ -233,42 +232,6 @@ The script uses the **CStyle Console** design system throughout:
 | Download hangs (blinking cursor) | ffmpeg missing — yt-dlp cannot merge streams | Install ffmpeg and restart |
 
 ---
-
-## Changelog
-
-### v2.3.0
-- **System dependency checks**: startup now verifies `ffmpeg` and `ffprobe` are in PATH
-- Platform-aware install hints (macOS: `brew`, Windows: `winget`, Linux: `apt`)
-- Script refuses to start if `ffmpeg` is missing — prevents silent download hangs
-- Fixed macOS issue: downloads appeared to hang (blinking cursor) when ffmpeg was absent
-
-### v2.2.0
-- **Auto-dependency management**: yt-dlp is automatically installed if missing, or upgraded if outdated
-- Animated CStyle Console progress bar during pip install/upgrade (phase tracking: Collecting → Downloading → Installing)
-- Graceful fallback: if upgrade check fails, the script continues with the installed version
-- Extensible `_REQUIRED_PACKAGES` list for future dependencies
-
-### v2.1.0
-- `.env` file for proxy configuration (no more hardcoded proxy in code)
-- Startup environment check: auto-creates `Downloads/`, `thumbnails/`, `links.txt`, `.env`
-- TCP-based proxy validation on every startup (`socket.create_connection`)
-- Removed `tver_downloader.py`, `tver_batch_downloader.py`, and their `.cmd` launchers
-- All functionality consolidated into `tver.py`
-
-### v2.0.0
-- Unified all functionality into a single `tver.py` with a 4-option interactive menu
-- Per-stream animated progress bars with phase labels (Video / Audio / Merge)
-- Merge phase animated with elapsed timer via reader thread + queue
-- Thumbnail download → `Downloads/thumbnails/`
-- Metadata (title + description) saved as `.txt` alongside each video
-- Playlist download support
-- Duplicate detection via `downloaded_archive.txt`
-
-### v1.1.0
-- Applied **CStyle Console UI** to both original scripts
-
-### v1.0.0
-- Initial release with `tver_downloader.py` and `tver_batch_downloader.py`
 
 ---
 
