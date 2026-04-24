@@ -233,8 +233,6 @@ The script uses the **CStyle Console** design system throughout:
 
 ---
 
----
-
 ## License
 
 MIT — free to use.
